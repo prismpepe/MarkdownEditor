@@ -1,3 +1,4 @@
+import json
 import re
 
 import pytest
@@ -102,3 +103,19 @@ def test_画面が組み立てられ_部品の置き場が残らない():
     html = mdeditor.build_html()
     assert "/*VENDOR_JS*/" not in html and "/*VENDOR_CSS*/" not in html
     assert "CodeMirror" in html and "fromTextArea" in html
+
+
+def test_アイコン集が同梱され_読み出せる(api):
+    assert "logos" in api.list_icon_packs()
+    data = json.loads(api.get_icon_pack("logos"))
+    assert data["prefix"] == "logos"
+    assert "slack-icon" in data["icons"] and "aws-lambda" in data["icons"]
+
+
+@pytest.mark.parametrize("name", ["../settings", "logos/../x", "..", "", None, "LOGOS", "a.b", "logos.json"])
+def test_アイコン集の名前に不正な文字があれば読まない(api, name):
+    assert api.get_icon_pack(name) is None
+
+
+def test_存在しないアイコン集は空で返す(api):
+    assert api.get_icon_pack("no-such-pack") is None

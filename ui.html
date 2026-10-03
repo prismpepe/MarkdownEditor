@@ -405,10 +405,13 @@ function applyCachedDiagrams() {
 }
 
 function loadMermaid() {
-  if (!mermaidReady) mermaidReady = api.get_mermaid().then(src => {
+  if (!mermaidReady) mermaidReady = api.get_mermaid().then(async src => {
     const s = document.createElement('script'); s.textContent = src; document.head.appendChild(s);
     window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict',
       theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+    // Architecture Diagram の追加アイコン。同梱のアイコン集を、使われたときだけ読み込む
+    const packs = await api.list_icon_packs();
+    if (packs.length) window.mermaid.registerIconPacks(packs.map(name => ({ name, loader: () => api.get_icon_pack(name).then(t => JSON.parse(t)) })));
     return window.mermaid;
   });
   return mermaidReady;
