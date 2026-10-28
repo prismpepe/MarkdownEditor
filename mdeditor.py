@@ -20,6 +20,7 @@ import sys
 import threading
 import webbrowser
 
+import cjk_emphasis
 import clipboard
 import dialogs
 import uiprefs
@@ -28,7 +29,7 @@ import printing
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.2.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.2.1"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -131,6 +132,7 @@ def make_renderer():
     from mdit_py_plugins.tasklists import tasklists_plugin
 
     md = MarkdownIt("commonmark", {"html": True})
+    cjk_emphasis.apply(md)       # 日本語の文で、記号に接した ** が強調になるようにする
     md.enable(["table", "strikethrough"])
     md.use(tasklists_plugin)
     md.use(anchors_plugin, min_level=1, max_level=6)
