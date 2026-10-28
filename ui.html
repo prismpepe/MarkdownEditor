@@ -1002,7 +1002,9 @@ async function requestClose() {
 function renderList() {
   const q = $('filter').value.trim().toLowerCase();
   const shown = files.filter(f => f.toLowerCase().includes(q));
-  $('count').textContent = folder ? `${shown.length} / ${files.length} 件` : '';
+  $('count').textContent = folder ? `${shown.length} / ${files.length} 件${listTruncated ? '（途中までです）' : ''}` : '';
+  $('count').style.color = listTruncated ? '#cf222e' : '';
+  $('count').title = listTruncated ? '大きなフォルダーなので、一覧は途中までです。もっと下のフォルダーを選ぶと、全部を出せます' : '';
   const list = $('list'); list.textContent = '';
   let last = null;
   for (const rel of shown) {
@@ -1021,18 +1023,21 @@ function renderList() {
     list.appendChild(div);
   }
 }
+let listTruncated = false;      // 一覧が、時間か件数の上限で途中までのとき true
 async function loadFolder(path) {
+  $('count').textContent = '一覧を読み込んでいます…'; $('count').style.color = '';
   const r = await api.list_files(path);
   if (r.error) { showMsg(r.error); return; }
-  showMsg(''); folder = path; files = r.files;
+  showMsg(''); folder = path; files = r.files; listTruncated = !!r.truncated;
   $('folder').textContent = path; $('filter').value = ''; renderList();
 }
 let lastSync = 0;
 async function syncList(force) {
-  if (!folder || (!force && Date.now() - lastSync < 1000)) return;
+  if (!folder || (!force && (listTruncated || Date.now() - lastSync < 1000))) return;   // 途中までの一覧は、前面に戻るたびには読み直さない（「更新」で読み直す）
   lastSync = Date.now();
   const r = await api.list_files(folder);
   if (r.error) { showMsg(r.error); return; }
+  listTruncated = !!r.truncated;
   if (JSON.stringify(r.files) !== JSON.stringify(files)) { files = r.files; renderList(); }
 }
 const samePath = (a, b) => !!a && !!b && a.replace(/[\\/]+$/, '').toLowerCase() === b.replace(/[\\/]+$/, '').toLowerCase();
