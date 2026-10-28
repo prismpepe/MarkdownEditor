@@ -24,7 +24,7 @@ ENCODINGS = {
 NEWLINES = {"CRLF": "\r\n", "LF": "\n", "CR": "\r"}
 DEFAULT_ENCODING = "UTF-8"
 DEFAULT_NEWLINE = "CRLF"          # Windows の既定。新規文書と、改行の無い文書に使う
-KEEP_BACKUPS = 5
+KEEP_BACKUPS = 5          # 退避は、置き場全体で直近5回の上書き分だけ残す（ファイルごとではない）
 
 
 class Conflict(Exception):
@@ -129,17 +129,42 @@ def backup_folder(backup_root, path):
     return os.path.join(backup_root, f"{key}_{os.path.basename(path)}")
 
 
+def prune_backups(backup_root, keep=KEEP_BACKUPS):
+    """退避の置き場全体で、新しい順に keep 個だけを残し、古いものを消す（空になったフォルダーも消す）。
+
+    退避の名前は日時で始まるので、名前の順がそのまま古い順になる。
+    """
+    found = []
+    try:
+        with os.scandir(backup_root) as folders:
+            for folder in folders:
+                if not folder.is_dir():
+                    continue
+                with os.scandir(folder.path) as files:
+                    found += [(f.name, f.path) for f in files if f.is_file() and f.name.endswith(".bak")]
+    except OSError:
+        return
+    found.sort()
+    for _, path in found[:-keep] if keep > 0 else found:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    try:
+        with os.scandir(backup_root) as folders:
+            for folder in folders:
+                if folder.is_dir() and not os.listdir(folder.path):
+                    os.rmdir(folder.path)
+    except OSError:
+        pass
+
+
 def make_backup(path, backup_root):
     folder = backup_folder(backup_root, path)
     os.makedirs(folder, exist_ok=True)
     name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + ".bak"
     shutil.copy2(path, os.path.join(folder, name))
-    old = sorted(os.listdir(folder))[:-KEEP_BACKUPS]
-    for n in old:
-        try:
-            os.remove(os.path.join(folder, n))
-        except OSError:
-            pass
+    prune_backups(backup_root)
 
 
 def write_document(path, text, encoding, newline, expected_stamp=None,

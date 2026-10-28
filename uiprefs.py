@@ -92,7 +92,7 @@ def clean_prefs(patch):
     return out
 
 
-VIEWS = ("split", "edit", "preview")
+VIEWS = ("triple", "split", "edit", "preview")      # 3画面・2画面・編集のみ・プレビューのみ
 SPLIT_RANGE = (5, 95)
 
 
@@ -103,6 +103,8 @@ def clean_layout(patch):
         return out
     if patch.get("view") in VIEWS:
         out["view"] = patch["view"]
+    if patch.get("layout_v") == 2 and not isinstance(patch.get("layout_v"), bool):
+        out["layout_v"] = 2                  # 表示モードを新しい4つにしたあとの設定、という印（旧版の設定と区別する）
     s = patch.get("split")
     if not isinstance(s, bool) and isinstance(s, (int, float)) and s == s \
             and SPLIT_RANGE[0] <= s <= SPLIT_RANGE[1]:

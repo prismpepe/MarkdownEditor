@@ -250,17 +250,6 @@ def test_ファイル名を指定して起動したときは使用フォルダ�
     assert mdeditor.Api(None).get_initial()["folder"] == str(f.parent)
 
 
-def test_何も指定しない起動では前回のファイルも開く(api, tmp_path):
-    f = tmp_path / "a.md"
-    f.write_text("x", encoding="utf-8")
-    api.list_files(str(tmp_path))
-    assert api.read_file(str(f))["error"] is None
-    init = mdeditor.Api(None).get_initial()
-    assert init["folder"] == str(tmp_path) and init["file"] == str(f)
-    f.unlink()
-    assert mdeditor.Api(None).get_initial()["file"] is None
-
-
 def test_ウィンドウの位置と大きさは閉じるときだけ保存する(api):
     class Native:
         WindowState = 0
@@ -297,3 +286,55 @@ def test_スタンプは文字列で受け渡し_JavaScriptの数値で丸めら
     assert api.save(str(f), "z", "UTF-8", "LF", ok["stamp"])["ok"]     # 何も変わっていなければ通る
     assert api.save(str(f), "w", "UTF-8", "LF", "壊れた値")["kind"] == "conflict"
 
+
+def test_起動時は前回のフォルダーだけを復元し_ファイルは開かない(api, tmp_path):
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    doc = folder / "a.md"
+    doc.write_text("x", encoding="utf-8")
+    api.list_files(str(folder))
+    assert api.read_file(str(doc))["error"] is None
+    assert api.save(str(doc), "y", "UTF-8", "LF", None)["ok"]
+    assert "last_file" not in mdeditor.load_settings()         # 開いたファイルは記憶しない
+    init = mdeditor.Api(None).get_initial()
+    assert init["folder"] == str(folder) and init["file"] is None
+
+
+def test_以前の版が記録した前回のファイルがあっても_開かない(api, tmp_path):
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    doc = folder / "a.md"
+    doc.write_text("x", encoding="utf-8")
+    mdeditor.save_settings({"last_folder": str(folder), "last_file": str(doc)})
+    init = mdeditor.Api(None).get_initial()
+    assert init["folder"] == str(folder) and init["file"] is None
+
+
+def test_表示モードは4つ_新しい設定の印も保存される(api):
+    for view in ("triple", "split", "edit", "preview"):
+        api.set_prefs({"view": view})
+        assert api.get_prefs()["view"] == view
+    api.set_prefs({"view": "bogus"})
+    assert api.get_prefs()["view"] == "preview"                # 不正な値は受け付けず、直前の値のまま
+    api.set_prefs({"layout_v": 2})
+    assert api.get_prefs()["layout_v"] == 2
+    for bad in (1, 3, "2", True, None):
+        api.set_prefs({"layout_v": bad})
+        assert api.get_prefs()["layout_v"] == 2                # 不正な値で、印は書き換わらない
+
+
+def test_設定を続けて保存しても_先の書き込みが消えない(api):
+    """画面は設定を続けて保存し、呼び出しは別のスレッドで同時に動く。順番に処理しないと、先の書き込みが消える。"""
+    import threading
+    patches = [{"view": ["triple", "split", "edit", "preview"][i % 4]} if i % 2 == 0
+               else {"layout_v": 2} for i in range(200)]
+    patches += [{"zoom": {"value": 1.5, "fit": False}}, {"split": 40}]
+    threads = [threading.Thread(target=api.set_prefs, args=(p,)) for p in patches]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    prefs = api.get_prefs()
+    assert prefs.get("layout_v") == 2                      # 途中の書き込みで消えていない
+    assert prefs.get("zoom") == {"value": 1.5, "fit": False} and prefs.get("split") == 40
+    assert prefs.get("view") in ("triple", "split", "edit", "preview")

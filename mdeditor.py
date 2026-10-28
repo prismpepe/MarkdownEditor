@@ -29,7 +29,7 @@ import printing
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.2.1"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.3.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -180,6 +180,7 @@ class Api:
         # ファイル名を指定して起動したときは、その回の使用フォルダー・開いたファイルを記憶しない
         # （次回の起動で、そのフォルダーが「前回のフォルダー」として復元されないように）。
         # 「フォルダーを開く」「ファイルを開く」で利用者が選び直したら、記憶を再開する
+        self._prefs_lock = threading.Lock()
         self._persist_location = not (start_path and os.path.isfile(start_path))
         self._keeper = None
 
@@ -203,13 +204,9 @@ class Api:
             else:
                 result["error"] = f"見つかりません: {start}"
         elif last and os.path.isdir(last):
-            # 何も指定しない起動: 前回のフォルダー（と開いていたファイル）を復元する
+            # 何も指定しない起動: 前回のフォルダーだけを復元する。ファイルは開かない
+            # （起動してすぐ、前回のファイルを誤って書き換えてしまうのを防ぐため）
             result["folder"] = last
-            last_file = settings.get("last_file")
-            if (last_file and os.path.isfile(last_file)
-                    and os.path.normcase(os.path.abspath(last_file)).startswith(
-                        os.path.normcase(os.path.abspath(last)) + os.sep)):
-                result["file"] = last_file
         return result
 
     # --- 画面の設定（フォント・表示倍率・一覧の表示・配置）------------------
@@ -225,11 +222,14 @@ class Api:
         layout = uiprefs.clean_layout(patch)
         clean = uiprefs.clean_prefs(patch)
         if layout or clean:
-            settings = load_settings()
-            if layout:
-                settings["prefs"] = {**uiprefs.clean_layout(settings.get("prefs")), **layout}
-            settings.update(clean)
-            save_settings(settings)
+            # 画面は設定を続けて何度も保存する。呼び出しごとに別のスレッドで動くので、「読む→足す→書く」が
+            # 重なると、先の書き込みが後の書き込みで消える。1つずつ順番に処理する
+            with self._prefs_lock:
+                settings = load_settings()
+                if layout:
+                    settings["prefs"] = {**uiprefs.clean_layout(settings.get("prefs")), **layout}
+                settings.update(clean)
+                save_settings(settings)
         return {**layout, **clean}
 
     def list_fonts(self):
@@ -288,19 +288,11 @@ class Api:
         except (TypeError, ValueError):
             return None
 
-    def _remember_file(self, path):
-        if self._persist_location and path:
-            settings = load_settings()
-            if settings.get("last_file") != path:
-                settings["last_file"] = path
-                save_settings(settings)
-
     def read_file(self, path):
         try:
             doc = filemodel.read_document(path)
         except OSError as e:
             return {"error": f"開けません: {e}"}
-        self._remember_file(path)
         doc["stamp"] = self._stamp_out(doc.get("stamp"))
         return {"error": None, "doc": doc}
 
@@ -327,7 +319,6 @@ class Api:
                     "chars": e.chars}
         except OSError as e:
             return {"ok": False, "kind": "error", "message": str(e)}
-        self._remember_file(path)
         return {"ok": True, "stamp": self._stamp_out(new_stamp)}
 
     def render(self, text, path=None):

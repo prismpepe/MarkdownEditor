@@ -80,16 +80,61 @@ def test_読み込み後に他で書き換えられたら保存を止める(tmp_
     assert open(path, "rb").read() == b"mine"
 
 
-def test_上書き前に退避し_世代数を超えたら古いものから消す(tmp_path):
+def all_backups(root):
+    """置き場にある退避（.bak）を、古い順に [(ファイル名, 中身)] で返す。"""
+    found = []
+    for folder in sorted(os.listdir(root)) if os.path.isdir(root) else []:
+        for name in os.listdir(os.path.join(root, folder)):
+            if name.endswith(".bak"):
+                found.append((name, open(os.path.join(root, folder, name), "rb").read()))
+    return sorted(found)
+
+
+def test_上書き前に退避し_直近の5回だけ残して古いものから消す(tmp_path):
     path = write_raw(tmp_path, "a.md", b"v0")
     backup = str(tmp_path / "bk")
     for i in range(1, fm.KEEP_BACKUPS + 4):
         fm.write_document(path, f"v{i}", "UTF-8", "LF", backup_root=backup)
-    folder = fm.backup_folder(backup, path)
-    names = sorted(os.listdir(folder))
-    assert len(names) == fm.KEEP_BACKUPS
-    newest = open(os.path.join(folder, names[-1]), "rb").read()
-    assert newest == f"v{fm.KEEP_BACKUPS + 2}".encode()   # 最後の上書き直前の内容
+    kept = all_backups(backup)
+    assert len(kept) == fm.KEEP_BACKUPS == 5
+    # 残るのは、新しいほうの5回分（それぞれ「上書きする直前の内容」）
+    last = fm.KEEP_BACKUPS + 3
+    assert [c for _, c in kept] == [f"v{n}".encode() for n in range(last - 5, last)]
+
+
+def test_複数のファイルをまたいでも_置き場全体で直近5回だけ残す(tmp_path):
+    backup = str(tmp_path / "bk")
+    paths = [write_raw(tmp_path, f"{n}.md", b"first") for n in "abc"]
+    for round_ in range(3):                              # a,b,c を3周する = 9回の上書き
+        for p in paths:
+            fm.write_document(p, f"r{round_}", "UTF-8", "LF", backup_root=backup)
+    assert len(all_backups(backup)) == fm.KEEP_BACKUPS    # ファイルごとではなく、全体で5つ
+
+
+def test_古い退避を消して空になったフォルダーも消す(tmp_path):
+    backup = str(tmp_path / "bk")
+    old = write_raw(tmp_path, "old.md", b"x")
+    new = write_raw(tmp_path, "new.md", b"x")
+    fm.write_document(old, "y", "UTF-8", "LF", backup_root=backup)       # old.md の退避は1つ（いちばん古い）
+    for i in range(fm.KEEP_BACKUPS):
+        fm.write_document(new, f"n{i}", "UTF-8", "LF", backup_root=backup)
+    folders = os.listdir(backup)
+    assert len(folders) == 1 and folders[0].endswith("_new.md")          # old.md の分は、フォルダーごと無くなる
+
+
+def test_退避の置き場にある_bak_以外のファイルは消さない(tmp_path):
+    backup = tmp_path / "bk"
+    folder = backup / "abc_a.md"
+    folder.mkdir(parents=True)
+    (folder / "memo.txt").write_text("利用者のメモ", encoding="utf-8")
+    path = write_raw(tmp_path, "a.md", b"x")
+    for i in range(fm.KEEP_BACKUPS + 2):
+        fm.write_document(path, f"v{i}", "UTF-8", "LF", backup_root=str(backup))
+    assert (folder / "memo.txt").read_text(encoding="utf-8") == "利用者のメモ"
+
+
+def test_退避の置き場が無くても整理は落ちない(tmp_path):
+    fm.prune_backups(str(tmp_path / "no_such_dir"))
 
 
 def test_新規ファイルは退避せず作れる(tmp_path):

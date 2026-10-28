@@ -41,12 +41,12 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   background: var(--side); border-bottom: 1px solid var(--border); }
 #toolbar .sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
 #toolbar .label { color: var(--muted); font-size: 12px; }
-.group { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; white-space: nowrap; }
 .seg { display: inline-flex; }
 .seg button { border-radius: 0; margin-left: -1px; }
 .seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
 .seg button:last-child { border-radius: 0 6px 6px 0; }
-#zoombox { display: inline-flex; align-items: center; gap: 4px; }
+#zoombox { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; }
 #zoombox button { padding: 5px 9px; min-width: 32px; }
 #zoombox input { width: 62px; text-align: right; }
 
@@ -82,7 +82,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #preview { padding: 16px 24px 64px; }
 #fmt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; padding: 5px 8px;
   background: var(--bg); border-bottom: 1px solid var(--border); }
-#fmt button { min-width: 30px; padding: 3px 6px; }
+#fmt button { min-width: 30px; padding: 3px 6px; white-space: nowrap; }
 #fmt select { padding: 3px 4px; }
 #fmt .fgroup { display: inline-flex; align-items: center; gap: 4px; padding-right: 8px; margin-right: 4px; border-right: 1px solid var(--border); }
 #fmt .fgroup:last-child { border-right: 0; }
@@ -237,15 +237,15 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   <button id="bSaveAs" title="Ctrl+Shift+S">名前を付けて保存</button>
   <button id="bPrint" title="Ctrl+P">🖨 印刷／PDF</button>
   <span class="sep"></span>
-  <button id="bSide" title="Ctrl+\">☰ 一覧を隠す</button>
   <button id="bReload" title="F5">↻ 更新</button>
   <button id="btnFont" title="表示フォントの設定">🔤 フォント</button>
   <span class="sep"></span>
   <span class="group"><span class="label">表示</span>
   <span class="seg">
-    <button id="vSplit" title="Ctrl+1">2画面</button>
-    <button id="vEdit" title="Ctrl+2">編集のみ</button>
-    <button id="vPrev" title="Ctrl+3">プレビューのみ</button>
+    <button id="vTriple" title="一覧・編集・プレビューを並べる (Ctrl+1)">3画面</button>
+    <button id="vSplit" title="編集・プレビューを並べる（一覧は隠す） (Ctrl+2)">2画面</button>
+    <button id="vEdit" title="編集だけを広く表示する (Ctrl+3)">編集のみ</button>
+    <button id="vPrev" title="プレビューだけを広く表示する (Ctrl+4)">プレビューのみ</button>
   </span></span>
   <span class="sep"></span>
   <span id="zoombox" class="group">
@@ -696,13 +696,12 @@ function applyFonts() {
   if (fitMode) fitWidth();
 }
 
-function savePrefsSoon() {              // 表示倍率・一覧の表示は、変えたあと少し待ってまとめて保存する
+function savePrefsSoon() {              // 表示倍率は、変えたあと少し待ってまとめて保存する
   if (!prefsReady || !api) return;
   clearTimeout(prefsTimer);
   prefsTimer = setTimeout(() => {
     prefs.zoom = { value: zoom, fit: fitMode };
-    prefs.side_hidden = $('side').classList.contains('hidden');
-    api.set_prefs({ zoom: prefs.zoom, side_hidden: prefs.side_hidden });
+    api.set_prefs({ zoom: prefs.zoom });
   }, 400);
 }
 
@@ -895,10 +894,13 @@ async function openPath(path) {
   renderList();
 }
 
-async function newDoc() {
-  if (!await confirmDiscard()) return;
+function resetToBlank() {             // 空の「無題」にする（保存の確認は、呼ぶ側で済ませておく）
   Object.assign(doc, { path: null, encoding: cfg.default_encoding, newline: cfg.default_newline, stamp: null, readonly: false });
   loadIntoEditor(''); status('');
+}
+async function newDoc() {
+  if (!await confirmDiscard()) return;
+  resetToBlank();
   cm.focus();
 }
 
@@ -1033,9 +1035,20 @@ async function syncList(force) {
   if (r.error) { showMsg(r.error); return; }
   if (JSON.stringify(r.files) !== JSON.stringify(files)) { files = r.files; renderList(); }
 }
+const samePath = (a, b) => !!a && !!b && a.replace(/[\\/]+$/, '').toLowerCase() === b.replace(/[\\/]+$/, '').toLowerCase();
+
+// 別のフォルダーへ移る。開いていた文書は、そのフォルダーのものではなくなるので閉じる。
+// 保存していない変更があれば、先に保存を促す（取り消されたら、フォルダーは移らない）。同じフォルダーなら、一覧を取り直すだけ
+async function switchFolder(p) {
+  if (samePath(p, folder)) { await loadFolder(p); return true; }
+  if (!await confirmDiscard()) return false;
+  resetToBlank();
+  await loadFolder(p);
+  return true;
+}
 async function chooseFolder() {
   const p = await api.pick_folder(folder || (doc.path ? dirName(doc.path) : null));
-  if (p) await loadFolder(p);
+  if (p) await switchFolder(p);
 }
 async function chooseFile() {
   const p = await api.pick_file(doc.path ? dirName(doc.path) : folder);
@@ -1043,22 +1056,24 @@ async function chooseFile() {
 }
 
 // ============================================================ 表示の切り替え・幅
+// 一覧・編集・プレビューのどれを出すかは、この4つのモードを1か所で切り替える。一覧が出るのは3画面のときだけ
+const VIEWS = ['triple', 'split', 'edit', 'preview'];
 function setView(mode) {
+  if (!VIEWS.includes(mode)) mode = 'triple';
   prefs.view = mode; api.set_prefs({ view: mode });
+  const both = mode === 'triple' || mode === 'split';          // 編集とプレビューを並べるモード
+  $('side').classList.toggle('hidden', mode !== 'triple');
   $('editorPane').style.display = mode === 'preview' ? 'none' : 'flex';
   $('previewPane').style.display = mode === 'edit' ? 'none' : 'flex';
-  $('split').style.display = mode === 'split' ? '' : 'none';
-  $('editorPane').style.flex = mode === 'split' ? `0 0 ${(prefs.split || 50)}%` : '1 1 auto';
-  $('vSplit').classList.toggle('active', mode === 'split');
-  $('vEdit').classList.toggle('active', mode === 'edit');
-  $('vPrev').classList.toggle('active', mode === 'preview');
+  $('split').style.display = both ? '' : 'none';
+  $('editorPane').style.flex = both ? `0 0 ${(prefs.split || 50)}%` : '1 1 auto';
+  for (const [id, m] of [['vTriple', 'triple'], ['vSplit', 'split'], ['vEdit', 'edit'], ['vPrev', 'preview']]) {
+    $(id).classList.toggle('active', mode === m);
+  }
   cm.refresh(); if (fitMode) setTimeout(fitWidth, 0);
 }
-function toggleSide() {
-  const h = $('side').classList.toggle('hidden');
-  $('bSide').textContent = h ? '☰ 一覧を表示' : '☰ 一覧を隠す';
-  savePrefsSoon();
-  cm.refresh(); if (fitMode) setTimeout(fitWidth, 0);
+function toggleSide() {                 // Ctrl+\ : 一覧の表示／非表示（3画面 ⇄ 2画面）
+  setView(prefs.view === 'triple' ? 'split' : 'triple');
 }
 function setEditorSize(px) {          // Ctrl+ホイール・Ctrl+±・Ctrl+0。フォント設定の「編集欄」の大きさと同じもの
   px = Math.min(FONT_PARTS.editor.max, Math.max(FONT_PARTS.editor.min, px));
@@ -1248,8 +1263,13 @@ window.addEventListener('pywebviewready', async () => {
   }
   applyFonts();
   if (prefs.zoom) setZoom(prefs.zoom.value, prefs.zoom.fit);
-  if (prefs.side_hidden) toggleSide();
-  setView(prefs.view || 'split');
+  if (prefs.layout_v !== 2) {          // 旧版: 「2画面」は編集とプレビュー、一覧は別のボタンで隠していた
+    const old = prefs.view || 'split';
+    prefs.view = old === 'split' ? (prefs.side_hidden ? 'split' : 'triple') : old;
+    prefs.layout_v = 2;
+    api.set_prefs({ view: prefs.view, layout_v: 2 });
+  }
+  setView(prefs.view || 'triple');
   applyDocMeta(); updateDirty(); updateCounters(); updatePreview();
   if (cfg.error) showMsg(cfg.error);
   if (cfg.folder) await loadFolder(cfg.folder);
@@ -1284,9 +1304,10 @@ window.addEventListener('resize', hideCtx);
 
 // ---- ボタン・入力
 $('bNew').onclick = newDoc; $('bFolder').onclick = chooseFolder; $('bOpen').onclick = chooseFile;
-$('bPrint').onclick = openPrint; $('bSaveAs').onclick = saveAs; $('bSide').onclick = toggleSide;
+$('bPrint').onclick = openPrint; $('bSaveAs').onclick = saveAs;
 $('bReload').onclick = async () => { await syncList(true); await checkExternal(); };
-$('vSplit').onclick = () => setView('split'); $('vEdit').onclick = () => setView('edit'); $('vPrev').onclick = () => setView('preview');
+$('vTriple').onclick = () => setView('triple'); $('vSplit').onclick = () => setView('split');
+$('vEdit').onclick = () => setView('edit'); $('vPrev').onclick = () => setView('preview');
 $('filter').oninput = renderList;
 $('selEnc').onchange = () => { doc.encoding = $('selEnc').value; doc.metaDirty = true; updateDirty(); };
 $('selNl').onchange = () => { doc.newline = $('selNl').value; doc.metaDirty = true; updateDirty(); };
@@ -1350,9 +1371,10 @@ document.addEventListener('keydown', e => {
   else if (c && !e.shiftKey && k === 'o') { e.preventDefault(); chooseFile(); }
   else if (c && e.shiftKey && k === 'o') { e.preventDefault(); chooseFolder(); }
   else if (c && k === '\\') { e.preventDefault(); toggleSide(); }
-  else if (c && k === '1') { e.preventDefault(); setView('split'); }
-  else if (c && k === '2') { e.preventDefault(); setView('edit'); }
-  else if (c && k === '3') { e.preventDefault(); setView('preview'); }
+  else if (c && k === '1') { e.preventDefault(); setView('triple'); }
+  else if (c && k === '2') { e.preventDefault(); setView('split'); }
+  else if (c && k === '3') { e.preventDefault(); setView('edit'); }
+  else if (c && k === '4') { e.preventDefault(); setView('preview'); }
   else if (c && k === '9') { e.preventDefault(); fitWidth(); }
   else if (c && (k === '=' || k === '+' || k === ';')) { e.preventDefault(); inEditor ? setEditorSize(edSize() + 1) : zoomBy(1.1); }
   else if (c && (k === '-' || k === '_')) { e.preventDefault(); inEditor ? setEditorSize(edSize() - 1) : zoomBy(1 / 1.1); }
