@@ -22,16 +22,28 @@ import webbrowser
 
 import clipboard
 import dialogs
+import uiprefs
 import filemodel
 import printing
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
+APP_VERSION = "1.2.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv"}
 MAX_FILES = 5000
 MAX_INLINE_IMAGE = 20 * 1024 * 1024
+DATA_EXTENSIONS = (".csv", ".tsv", ".json")   # Vega-Lite の data.url で読めるローカルファイル
+MAX_DATA_FILE = 20 * 1024 * 1024
+# 文書内のリンクから、関連づけられたアプリで開いてよいローカルファイル。
+# 実行ファイル・スクリプト・ショートカット・マクロ付き Office などは含めない
+OPEN_EXTENSIONS = (
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".rtf",
+    ".odt", ".ods", ".odp", ".txt", ".csv", ".tsv",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp",
+)
 # ブロック要素のうち、プレビューと編集の位置合わせに使うもの
 LINE_TOKENS = {"paragraph_open", "heading_open", "bullet_list_open", "ordered_list_open",
                "list_item_open", "blockquote_open", "table_open", "tr_open", "hr"}
@@ -157,16 +169,24 @@ class Api:
         self._window = None
         self._md = make_renderer()
         self._mermaid = None
+        self._vendor = {}
+        self._doc_dir = None      # いま編集中の文書のフォルダー（Vega-Lite のデータ読み込みの基準）
         self._start_path = start_path
         self._dirty = False
         self._closing = False
+        self._fonts = None
+        # ファイル名を指定して起動したときは、その回の使用フォルダー・開いたファイルを記憶しない
+        # （次回の起動で、そのフォルダーが「前回のフォルダー」として復元されないように）。
+        # 「フォルダーを開く」「ファイルを開く」で利用者が選び直したら、記憶を再開する
+        self._persist_location = not (start_path and os.path.isfile(start_path))
+        self._keeper = None
 
     # --- 起動 ---------------------------------------------------------------
     def get_initial(self):
         settings = load_settings()
         start = self._start_path
         result = {"folder": None, "file": None, "error": None,
-                  "prefs": settings.get("prefs", {}),
+                  "prefs": self._all_prefs(settings),
                   "encodings": list(filemodel.ENCODINGS),
                   "newlines": list(filemodel.NEWLINES),
                   "default_encoding": filemodel.DEFAULT_ENCODING,
@@ -181,13 +201,39 @@ class Api:
             else:
                 result["error"] = f"見つかりません: {start}"
         elif last and os.path.isdir(last):
+            # 何も指定しない起動: 前回のフォルダー（と開いていたファイル）を復元する
             result["folder"] = last
+            last_file = settings.get("last_file")
+            if (last_file and os.path.isfile(last_file)
+                    and os.path.normcase(os.path.abspath(last_file)).startswith(
+                        os.path.normcase(os.path.abspath(last)) + os.sep)):
+                result["file"] = last_file
         return result
 
-    def set_prefs(self, prefs):
-        settings = load_settings()
-        settings["prefs"] = {**settings.get("prefs", {}), **prefs}
-        save_settings(settings)
+    # --- 画面の設定（フォント・表示倍率・一覧の表示・配置）------------------
+    @staticmethod
+    def _all_prefs(settings):
+        return {**uiprefs.clean_layout(settings.get("prefs")), **uiprefs.clean_prefs(settings)}
+
+    def get_prefs(self):
+        return self._all_prefs(load_settings())
+
+    def set_prefs(self, patch):
+        """画面から受け取った設定のうち、正しいものだけを保存する。"""
+        layout = uiprefs.clean_layout(patch)
+        clean = uiprefs.clean_prefs(patch)
+        if layout or clean:
+            settings = load_settings()
+            if layout:
+                settings["prefs"] = {**uiprefs.clean_layout(settings.get("prefs")), **layout}
+            settings.update(clean)
+            save_settings(settings)
+        return {**layout, **clean}
+
+    def list_fonts(self):
+        if self._fonts is None:
+            self._fonts = uiprefs.list_system_fonts()
+        return self._fonts
 
     # --- フォルダー・一覧 ----------------------------------------------------
     def _initial_dir(self, initial):
@@ -197,41 +243,80 @@ class Api:
         return last if last and os.path.isdir(last) else os.getcwd()
 
     def pick_folder(self, initial=None):
-        return dialogs.pick_folder(self._initial_dir(initial))
+        path = dialogs.pick_folder(self._initial_dir(initial))
+        if path:
+            self._persist_location = True
+        return path
 
     def pick_file(self, initial=None):
-        return dialogs.pick_file(self._initial_dir(initial))
+        path = dialogs.pick_file(self._initial_dir(initial))
+        if path:
+            self._persist_location = True
+        return path
 
     def pick_save(self, initial_dir=None, name="無題.md"):
-        return dialogs.pick_save(self._initial_dir(initial_dir), name)
+        path = dialogs.pick_save(self._initial_dir(initial_dir), name)
+        if path:
+            self._persist_location = True
+        return path
 
     def list_files(self, folder):
         if not os.path.isdir(folder):
             return {"error": f"フォルダーが見つかりません: {folder}", "files": []}
-        settings = load_settings()
-        settings["last_folder"] = folder
-        save_settings(settings)
+        if self._persist_location:
+            settings = load_settings()
+            if settings.get("last_folder") != folder:
+                settings["last_folder"] = folder
+                save_settings(settings)
         return {"error": None, "files": list_markdown(folder)}
 
     # --- 文書 ---------------------------------------------------------------
+    # ファイルの「スタンプ」（更新時刻と大きさ）は、画面との受け渡しだけ文字列にする。
+    # 更新時刻はナノ秒の整数で 2^53 を超えるため、JavaScript の数値を通すと下の桁が丸められ、
+    # 何も書き換えられていなくても「他のアプリが変更した」と誤って判定されてしまう
+    @staticmethod
+    def _stamp_out(stamp):
+        return None if stamp is None else f"{stamp[0]}:{stamp[1]}"
+
+    @staticmethod
+    def _stamp_in(text):
+        try:
+            a, b = str(text).split(":")
+            return [int(a), int(b)]
+        except (TypeError, ValueError):
+            return None
+
+    def _remember_file(self, path):
+        if self._persist_location and path:
+            settings = load_settings()
+            if settings.get("last_file") != path:
+                settings["last_file"] = path
+                save_settings(settings)
+
     def read_file(self, path):
         try:
-            return {"error": None, "doc": filemodel.read_document(path)}
+            doc = filemodel.read_document(path)
         except OSError as e:
             return {"error": f"開けません: {e}"}
+        self._remember_file(path)
+        doc["stamp"] = self._stamp_out(doc.get("stamp"))
+        return {"error": None, "doc": doc}
 
     def check_changed(self, path):
         """読み込んだあとにファイルが変わったかを確かめるための、現在のスタンプ。"""
         try:
-            return {"state": "exists", "stamp": filemodel.stamp_of(path)}
+            return {"state": "exists", "stamp": self._stamp_out(filemodel.stamp_of(path))}
         except OSError:
             return {"state": "missing", "stamp": None}
 
     def save(self, path, text, encoding, newline, stamp):
         """stamp が None なら競合を確かめずに上書きする（利用者が上書きを選んだとき）。"""
+        expected = self._stamp_in(stamp) if stamp is not None else None
+        if stamp is not None and expected is None:          # 読めないスタンプは、変わったものとして扱う
+            return {"ok": False, "kind": "conflict"}
         try:
             new_stamp = filemodel.write_document(
-                path, text, encoding, newline, expected_stamp=stamp,
+                path, text, encoding, newline, expected_stamp=expected,
                 backup_root=backup_root())
         except filemodel.Conflict:
             return {"ok": False, "kind": "conflict"}
@@ -240,10 +325,12 @@ class Api:
                     "chars": e.chars}
         except OSError as e:
             return {"ok": False, "kind": "error", "message": str(e)}
-        return {"ok": True, "stamp": new_stamp}
+        self._remember_file(path)
+        return {"ok": True, "stamp": self._stamp_out(new_stamp)}
 
     def render(self, text, path=None):
         base = os.path.dirname(path) if path else ""
+        self._doc_dir = base or None
         html = self._md.render(text, {"base": base})
         return sanitize(html, lambda src: inline_image(src, base))
 
@@ -255,6 +342,50 @@ class Api:
             return None
         path = os.path.normpath(os.path.join(os.path.dirname(current), target))
         return path if os.path.isfile(path) and is_markdown(path) else None
+
+    def open_local(self, current, href):
+        """文書内のローカルファイル（PDF・Word など）へのリンクを、関連づけられたアプリで開く。
+        許す書き方: 相対パス（../ も可。文書のあるフォルダー基準）、file:///C:/…、C:/…。
+        ネットワーク共有（UNC）・存在しないファイル・OPEN_EXTENSIONS 以外は開かない。"""
+        from urllib.parse import unquote, urlsplit
+        from urllib.request import url2pathname
+        raw = str(href).strip()
+        if re.match(r"(?i)^file:", raw):
+            parts = urlsplit(raw)
+            if parts.netloc not in ("", "localhost"):
+                return {"error": "ネットワーク上のファイルへのリンクは開けません: " + raw}
+            path = url2pathname(unquote(parts.path))
+            if os.name == "nt" and re.match(r"^[\\/][A-Za-z]:", path):
+                path = path[1:]
+            if not re.match(r"^[A-Za-z]:[\\/]", path):
+                return {"error": "ドライブ名から始まるパスだけ開けます: " + raw}
+        else:
+            rel = unquote(raw.split("#")[0].split("?")[0]).strip()
+            if not rel:
+                return {"error": "開き先がありません"}
+            if rel.startswith(("\\\\", "//")):
+                return {"error": "ネットワーク上のファイルへのリンクは開けません: " + raw}
+            if re.match(r"^[A-Za-z]:[\\/]", rel):
+                path = rel
+            elif re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", rel) or os.path.isabs(rel):
+                return {"error": "このリンクは開けません: " + raw}
+            else:
+                if not current:
+                    return {"error": "保存先のない文書では、相対パスのリンクは開けません。先に保存してください"}
+                path = os.path.join(os.path.dirname(current), rel)
+        path = os.path.normpath(path)
+        if not path.lower().endswith(OPEN_EXTENSIONS):
+            return {"error": "この種類のファイルは開けません（%s）" % os.path.basename(path)}
+        if not os.path.isfile(path):
+            return {"error": "ファイルが見つかりません: " + path}
+        real = os.path.realpath(path)
+        if not real.lower().endswith(OPEN_EXTENSIONS):      # リンク先の実体も同じ条件で確かめる
+            return {"error": "この種類のファイルは開けません（%s）" % os.path.basename(real)}
+        try:
+            os.startfile(path)
+        except OSError as e:
+            return {"error": f"開けませんでした: {e}"}
+        return {"error": None}
 
     # --- Mermaid の追加アイコン（Architecture Diagram の `logos:slack-icon` など）---------
     def list_icon_packs(self):
@@ -281,6 +412,50 @@ class Api:
             with open(resource_path("vendor/mermaid.min.js"), encoding="utf-8") as f:
                 self._mermaid = f.read()
         return self._mermaid
+
+    # Vega-Lite 用のライブラリ。vendor/ に置いた3ファイルだけを、グラフがあるときに画面が取りに来る
+    _VENDOR_FILES = {
+        "vega": "vega.min.js",
+        "vega-lite": "vega-lite.min.js",
+        "vega-embed": "vega-embed.min.js",
+    }
+
+    def get_vendor(self, name):
+        fname = self._VENDOR_FILES.get(name)
+        if fname is None:
+            raise ValueError("unknown vendor library: %s" % name)
+        if name not in self._vendor:
+            with open(resource_path("vendor/" + fname), encoding="utf-8") as f:
+                self._vendor[name] = f.read()
+        return self._vendor[name]
+
+    def read_data(self, uri):
+        """Vega-Lite の data.url に書かれた相対パスのデータ（CSV/TSV/JSON）を読む。
+        編集中の文書のフォルダーとその下だけ。絶対パス・../ での外出・他の拡張子は拒否する。"""
+        from urllib.parse import unquote
+        base = self._doc_dir
+        if not base:
+            return {"error": "文書を保存してから使えます（保存先のない「無題」の文書では、相対パスのデータは読めません）"}
+        rel = unquote(str(uri).split("#")[0].split("?")[0]).strip()
+        if (not rel or os.path.isabs(rel) or re.match(r"^[A-Za-z]:", rel)
+                or rel.startswith(("\\\\", "/")) or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", rel)):
+            return {"error": "相対パスだけ使えます: " + str(uri)}
+        if not rel.lower().endswith(DATA_EXTENSIONS):
+            return {"error": "読めるファイルは .csv / .tsv / .json だけです: " + str(uri)}
+        root = os.path.realpath(base)
+        path = os.path.realpath(os.path.join(root, rel))
+        try:
+            inside = os.path.commonpath([root, path]) == root
+        except ValueError:          # 別ドライブなど
+            inside = False
+        if not inside:
+            return {"error": "文書のフォルダーの外は読めません: " + str(uri)}
+        try:
+            if os.path.getsize(path) > MAX_DATA_FILE:
+                return {"error": "ファイルが大きすぎます（20MBまで）: " + str(uri)}
+            return {"error": None, "text": filemodel.read_document(path)["text"]}
+        except OSError as e:
+            return {"error": f"開けません: {e}"}
 
     def open_external(self, url):
         if url.startswith(("http://", "https://", "mailto:")):
@@ -359,6 +534,8 @@ class Api:
     def on_closing(self):
         """未保存があれば閉じずに、画面へ確認を出させる（False で閉じるのを止める）。"""
         if self._closing or not self._dirty:
+            if self._keeper:
+                self._keeper.save()          # 閉じることが決まったときだけ、位置と大きさを残す
             return True
         # closing は画面のスレッド上で呼ばれるので、画面への問い合わせは別スレッドで行う
         threading.Thread(
@@ -390,6 +567,7 @@ def build_html():
                 .replace("/*FORMAT_JS*/", fmt)
                 .replace("/*FIND_JS*/", find)
                 .replace("/*PRINT_JS*/", print_js)
+                .replace("__APP_VERSION__", APP_VERSION)
                 .replace("/*VENDOR_JS*/", js.replace("</script", "<\\/script")))
 
 
@@ -454,6 +632,73 @@ def unregister_association():
     message("登録を解除しました。")
 
 
+class WindowKeeper:
+    """ウィンドウの位置・大きさ・最大化を、閉じるときに保存する（次の起動で戻す）。
+
+    高 DPI の画面では、作るときに渡す大きさと、あとから読み取る大きさの単位が
+    違うことがあるので、表示できた時点で両者の比を測り、保存する値をそろえる
+    （そろえないと、起動のたびにウィンドウが少しずつ大きくなる）。
+    どこかで失敗しても、保存・復元をやめるだけで、アプリの動作には影響しない。
+    """
+
+    def __init__(self, window, width, height, maximize):
+        self.window = window
+        self.width, self.height = width, height
+        self.maximize = maximize
+        self.ratio_w = self.ratio_h = 1.0
+        self.measured = False
+
+    def _bounds(self):
+        """(左, 上, 幅, 高さ, 最大化か)。最小化中などで取れなければ None。"""
+        native = getattr(self.window, "native", None)
+        if native is None:
+            w = self.window
+            return (w.x, w.y, w.width, w.height, False)
+        try:
+            state = int(native.WindowState)              # 0 通常, 1 最小化, 2 最大化
+        except Exception:
+            state = {"Normal": 0, "Minimized": 1, "Maximized": 2}.get(str(native.WindowState), 0)
+        if state == 1:
+            return None
+        if state == 2:                                   # 最大化の前の、元の位置と大きさを残す
+            r = native.RestoreBounds
+            return (r.X, r.Y, r.Width, r.Height, True)
+        return (native.Left, native.Top, native.Width, native.Height, False)
+
+    def on_loaded(self):
+        if self.measured:
+            return
+        self.measured = True
+        try:
+            b = self._bounds()
+            if b and not b[4]:
+                rw, rh = b[2] / self.width, b[3] / self.height
+                if 0.95 <= rw <= 3 and 0.95 <= rh <= 3:  # 画面に収まるよう削られた場合は使わない
+                    self.ratio_w, self.ratio_h = rw, rh
+        except Exception:
+            pass
+        if self.maximize:
+            try:
+                self.window.maximize()
+            except Exception:
+                pass
+
+    def save(self):
+        try:
+            b = self._bounds()
+            if not b:
+                return
+            x, y, w, h, maximized = b
+            settings = load_settings()
+            settings["window"] = {
+                "x": int(x), "y": int(y),
+                "width": int(round(w / self.ratio_w)), "height": int(round(h / self.ratio_h)),
+                "maximized": bool(maximized)}
+            save_settings(settings)
+        except Exception:
+            pass
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] == "--register":
@@ -466,10 +711,18 @@ def main():
     import webview
     start = os.path.abspath(args[0]) if args else None
     api = Api(start)
+    # 前回のウィンドウの位置・大きさを戻す（画面の外に出てしまう位置は使わない）
+    geo = uiprefs.clean_window(load_settings().get("window"))
+    width, height = geo.get("width", 1400), geo.get("height", 860)
+    place = {}
+    if uiprefs.place_visible(geo, uiprefs.virtual_screen()):
+        place = {"x": geo["x"], "y": geo["y"]}
     window = webview.create_window(
-        APP_NAME, html=build_html(), js_api=api,
-        width=1400, height=860, min_size=(800, 480))
+        APP_TITLE, html=build_html(), js_api=api,
+        width=width, height=height, min_size=(640, 400), **place)
     api._window = window
+    api._keeper = WindowKeeper(window, width, height, bool(geo.get("maximized")))
+    window.events.loaded += api._keeper.on_loaded
     window.events.closing += api.on_closing
     webview.start()
 

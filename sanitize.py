@@ -38,7 +38,7 @@ ATTRS = {
     "p": {"align"}, "div": {"align"}, "h1": {"align"}, "h2": {"align"},
     "h3": {"align"}, "h4": {"align"}, "h5": {"align"}, "h6": {"align"},
 }
-LINK_SCHEMES = {"", "http", "https", "mailto"}
+LINK_SCHEMES = {"", "http", "https", "mailto", "file"}   # file: は、開いてよいか Api.open_local が確かめる
 IMG_SCHEMES = {"", "http", "https"}
 _CONTROL = re.compile(r"[\x00-\x20\x7f]+")
 

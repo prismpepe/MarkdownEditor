@@ -67,17 +67,18 @@ def drive():
     r = run("文章", 2, 2, "MdFormat.table(cm)"); check("表: 文章の下に空行をはさむ", r['v'].startswith("文章\n\n| 列1"), True)
     r = run("文章", 2, 2, "MdFormat.rule(cm)"); check("区切り線", r['v'], "文章\n\n---\n")
 
-    # 図のひな形が実際に描けること（5種類すべて）
+    # 図のひな形が実際に描けること（全種類）
+    count = w.evaluate_js("Object.keys(MdFormat.DIAGRAMS).length")
     w.evaluate_js(r"""cm.setValue(''); for (const k of Object.keys(MdFormat.DIAGRAMS)) { cm.setCursor({line: cm.lineCount()-1, ch: 0}); MdFormat.diagram(cm, k); }""")
     ok = False
     for _ in range(40):
         time.sleep(.5)
-        n = w.evaluate_js("document.querySelectorAll('#preview .diagram svg').length")
-        if n == 5:
+        n = w.evaluate_js("document.querySelectorAll('#preview .diagram > svg').length")
+        if n == count:
             ok = True
             break
     errs = w.evaluate_js("document.querySelectorAll('#preview .diagram-error').length")
-    check("図のひな形5種類がプレビューで描ける", (ok, errs), (True, 0))
+    check(f"図のひな形{count}種類がプレビューで描ける", (ok, errs), (True, 0))
 
     # ボタン・選択欄の配線
     w.evaluate_js(HELPER)
