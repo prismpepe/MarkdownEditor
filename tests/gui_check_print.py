@@ -31,6 +31,16 @@ w = webview.create_window('t', html=mdeditor.build_html(), js_api=api, width=130
 api._window = w
 results = []
 
+PB = {
+    'none': "# 一\n\n本文\n\n# 二\n\n本文\n",
+    'class': "# 一\n\n本文\n\n<div class=\"page-break\"></div>\n\n# 二\n\n本文\n",
+    'three': "# 一\n\n<div class=\"page-break\"></div>\n\n# 二\n\n<div style=\"page-break-after: always;\"></div>\n\n# 三\n\n<div class=\"pagebreak\"></div>\n\n# 四\n",
+    'before': "# 一\n\n本文\n\n<p class=\"page-break-before\">ここから次のページ</p>\n\n本文\n",
+    'after': "<p class=\"page-break-after\">一ページ目だけ</p>\n\n二ページ目\n",
+    'inline': "# 一\n\n本文\n\n<div style=\"color:red; break-before: page\">二ページ目</div>\n",
+    'trailing': "# 一\n\n本文\n\n<div class=\"page-break\"></div>\n",
+}
+
 
 def js(code):
     return w.evaluate_js(code)
@@ -101,6 +111,20 @@ def drive():
     js("cm.setValue(%s)" % json.dumps("# 短い\n\n一行だけ。"))
     time.sleep(1.5)
     check("短い文書は1ページ（画面の部品は紙に出ない）", pages(), 1)
+
+    # 改ページ（class / style）: 実際の PDF のページ数で確かめる
+    def pb(name):
+        js("cm.setValue(%s)" % json.dumps(PB[name]))
+        time.sleep(1.5)
+        return pages()
+    check("改ページが無ければ1ページ", pb('none'), 1)
+    check("class=page-break で2ページ", pb('class'), 2)
+    check("class と style と pagebreak の混在で4ページ", pb('three'), 4)
+    check("class=page-break-before で次のページへ", pb('before'), 2)
+    check("class=page-break-after の後ろが次のページ", pb('after'), 2)
+    check("style の改ページは通り、他の style（color）は無視される", pb('inline'), 2)
+    print("    末尾の改ページ（空白ページが増えるか）:", pb('trailing'), flush=True)
+    check("改ページの印はプレビューに点線で出る", js("getComputedStyle(document.querySelector('#preview .page-break')).borderTopStyle"), 'dashed')
 
     # 幅の広い表: 縮小の有無でページ数が変わる
     cols = 14

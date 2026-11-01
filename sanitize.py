@@ -1,8 +1,8 @@
 """Markdown に埋め込まれた HTML を、許可したタグ・属性だけ残して通す。
 
 方針は許可リスト方式。ここに無いタグは外し（中身は残す）、script・style・
-iframe など中身ごと危険なものは中身も捨てる。on* 属性・style 属性・
-javascript: のリンクは落とす。構文エラーのある HTML でも出力は必ず
+iframe など中身ごと危険なものは中身も捨てる。on* 属性・javascript: のリンクは
+落とす。style 属性は、改ページの指定（page-break-after: always など）だけ残す。構文エラーのある HTML でも出力は必ず
 ここで組み立て直したものだけになる。
 """
 import html
@@ -42,6 +42,25 @@ LINK_SCHEMES = {"", "http", "https", "mailto", "file"}   # file: は、開いて
 IMG_SCHEMES = {"", "http", "https"}
 _CONTROL = re.compile(r"[\x00-\x20\x7f]+")
 
+# style 属性は原則として落とす。ただし、改ページの指定だけは通す（印刷・PDF で使うため）。
+# `<div style="page-break-after: always"></div>` のような、よくある書き方に応える。
+PAGE_BREAK_PROPS = {"page-break-before", "page-break-after", "page-break-inside",
+                    "break-before", "break-after", "break-inside"}
+PAGE_BREAK_VALUES = {"auto", "always", "avoid", "page", "left", "right", "recto", "verso",
+                     "avoid-page"}
+
+
+def safe_style(value):
+    """許可した改ページの宣言だけを集めて返す。1つも無ければ None。"""
+    kept = []
+    for decl in html.unescape(value).split(";"):
+        name, sep, val = decl.partition(":")
+        name, val = name.strip().lower(), val.strip().lower()
+        if sep and name in PAGE_BREAK_PROPS and val in PAGE_BREAK_VALUES:
+            kept.append(f"{name}: {val}")
+    return "; ".join(kept) or None
+
+
 
 def safe_url(value, schemes, allow_data_image=False):
     cleaned = _CONTROL.sub("", html.unescape(value))
@@ -77,7 +96,7 @@ class _Sanitizer(HTMLParser):
             return
         if tag not in TAGS:
             return
-        allowed = COMMON | ATTRS.get(tag, set())
+        allowed = COMMON | ATTRS.get(tag, set()) | {"style"}
         parts = []
         for name, value in attrs:
             name = name.lower()
@@ -87,7 +106,9 @@ class _Sanitizer(HTMLParser):
                 value = ""
             if tag == "input" and name == "type" and value.lower() != "checkbox":
                 return                      # チェックボックス以外の入力欄は出さない
-            if name == "href":
+            if name == "style":
+                value = safe_style(value)
+            elif name == "href":
                 value = safe_url(value, LINK_SCHEMES)
             elif name == "src":
                 value = safe_url(value, IMG_SCHEMES, allow_data_image=True)
