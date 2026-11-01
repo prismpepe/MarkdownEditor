@@ -1064,6 +1064,12 @@ async function chooseFile() {
   if (p) await openPath(p);
 }
 
+// ウィンドウへのドロップ。Python（filedrop.py）が、開くと決まった対象（Markdown ファイル1つ／フォルダー1つ）だけを渡してくる
+async function handleDrop(kind, path) {
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen()) return;
+  if (kind === 'folder') await switchFolder(path); else await openPath(path);
+}
+
 // ============================================================ 表示の切り替え・幅
 // 一覧・編集・プレビューのどれを出すかは、この4つのモードを1か所で切り替える。一覧が出るのは3画面のときだけ
 const VIEWS = ['triple', 'split', 'edit', 'preview'];
@@ -1245,6 +1251,10 @@ document.addEventListener('DOMContentLoaded', () => {
       'Ctrl-S': () => {}, 'Ctrl-N': () => {}, 'Ctrl-O': () => {},   // アプリ側で処理する
     },
   });
+  // ファイルのドロップは編集欄に中身を挿入させない（開くのは handleDrop。テキストのドラッグは従来どおり）
+  const isFileDrag = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  cm.on('drop', (c, e) => { if (isFileDrag(e)) e.codemirrorIgnore = true; });
+  cm.on('dragover', (c, e) => { if (isFileDrag(e)) e.codemirrorIgnore = true; });
   cm.on('change', () => { followCursor = true; schedulePreview(); updateDirty(); scheduleCounters(); });
   cm.on('cursorActivity', scheduleCounters);
   cm.on('scroll', syncFromTop);

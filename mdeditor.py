@@ -24,6 +24,7 @@ import webbrowser
 import cjk_emphasis
 import clipboard
 import dialogs
+import filedrop
 import uiprefs
 import filemodel
 import printing
@@ -31,7 +32,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.5.1"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.6.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -553,6 +554,18 @@ class Api:
         return False
 
 
+
+def _install_drop(window):
+    """ウィンドウへのドロップ（Markdown ファイル1つ／フォルダー1つ）を受ける。読み込みの完了後に1度だけ。"""
+    if getattr(window, "_drop_installed", False):
+        return
+    window._drop_installed = True
+    try:
+        filedrop.install(window, is_markdown, filedrop.open_in_window(window))
+    except Exception:
+        pass            # ドロップが使えなくても、ほかの機能は使えるようにする
+
+
 def build_html():
     """画面を組み立てる。部品は文字列として埋め込む（読み込み元を持たない画面のため）。"""
     def read(name):
@@ -703,6 +716,7 @@ def main():
     api._window = window
     api._keeper = WindowKeeper(window, width, height, bool(geo.get("maximized")))
     window.events.loaded += api._keeper.on_loaded
+    window.events.loaded += lambda: _install_drop(window)
     window.events.closing += api.on_closing
     webview.start()
 
