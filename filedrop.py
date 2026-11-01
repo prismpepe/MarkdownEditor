@@ -3,6 +3,9 @@
 - 開くのは「Markdown ファイル1つ」か「フォルダー1つ」だけ。ほかのファイル、複数のドロップは無視する。
 - ドロップを受けないと、WebView2 がファイルをブラウザーで開こうとする。そのため、無視する場合も
   必ず既定の動作（ブラウザーの起動）を止める。
+- ドラッグ中に絶え間なく出る dragover は、ここ（pywebview の DOM イベント）では受けない。1回ごとにイベント
+  全体をシリアライズして Python へ送るため、実測で1回 0.1〜0.3 秒かかり、画面が固まってドロップが
+  遅れた。dragover の既定の動作を止める処理は、画面側（ui.html）の素の JavaScript に置く。
 - 実際のパスは、pywebview がドロップの直前にネイティブ側で拾った値（`pywebviewFullPath`）から得る。
 """
 import json
@@ -39,10 +42,7 @@ def install(window, is_markdown, notify=None):
         if target and notify:
             notify(*target)
 
-    keep = dict(prevent_default=True, stop_propagation=True)
-    events = window.dom.document.events
-    events.dragover += DOMEventHandler(lambda e: None, **keep)
-    events.drop += DOMEventHandler(on_drop, **keep)
+    window.dom.document.events.drop += DOMEventHandler(on_drop, prevent_default=True, stop_propagation=True)
 
 
 def open_in_window(window):

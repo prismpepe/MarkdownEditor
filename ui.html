@@ -1064,6 +1064,9 @@ async function chooseFile() {
   if (p) await openPath(p);
 }
 
+// ドロップを受けるには、dragover の既定の動作を止める。Python には送らない（ドラッグ中に大量に出るため。filedrop.py を参照）
+document.addEventListener('dragover', e => e.preventDefault());
+
 // ウィンドウへのドロップ。Python（filedrop.py）が、開くと決まった対象（Markdown ファイル1つ／フォルダー1つ）だけを渡してくる
 async function handleDrop(kind, path) {
   if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen()) return;

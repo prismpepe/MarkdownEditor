@@ -102,6 +102,20 @@ def drive():
     drop(doc_b)
     check("続けてファイルをドロップしても開ける", cur_path(), doc_b)
 
+    # 実際のドラッグ中は、dragover が絶え間なく届く。Python へ送ると画面が固まり、ドロップが遅れていた
+    t0 = time.time()
+    js("for (let i = 0; i < 300; i++) document.body.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true }))")
+    check("dragover を300回送っても、画面は固まらない（2秒以内に戻る）", time.time() - t0 < 2, True)
+    _dnd_state['paths'].append((os.path.basename(doc_a), doc_a))
+    js("""(() => { const dt = new DataTransfer(); dt.items.add(new File(['x'], %s));
+        document.body.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); })()""" % json.dumps(os.path.basename(doc_a)))
+    t1 = time.time()
+    while time.time() - t1 < 10 and cur_path() != doc_a:
+        time.sleep(0.1)
+    took = time.time() - t1
+    print("    ドロップから開くまで: %.2f 秒" % took, flush=True)
+    check("大量の dragover のあとでも、ドロップしてすぐ（2秒以内に）開く", took < 2, True)
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     os._exit(0)
 
