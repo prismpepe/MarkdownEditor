@@ -210,11 +210,6 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #fdlg .grow { flex: 1; }
 #fdlg button.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 6px 18px; }
 
-/* 改ページの印（印刷・PDF で効く。画面では位置が分かるよう点線で示す） */
-#preview .page-break, #preview .pagebreak { height: 0; margin: 1.2em 0; border-top: 1px dashed var(--muted); position: relative; overflow: visible; }
-#preview .page-break::after, #preview .pagebreak::after { content: "改ページ"; position: absolute; right: 0; top: -.7em; padding: 0 6px;
-  font-size: 11px; color: var(--muted); background: var(--bg); }
-
 @media print {
   :root { --bg: #fff; --fg: #000; --muted: #444; --side: #f2f2f2; --border: #999; --accent: #0645ad;
     --code: #f2f2f2; --head: #000; --danger: #b00; }
@@ -228,8 +223,8 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   #preview tr, #preview img, #preview .diagram, #preview blockquote, #preview li { break-inside: avoid; }
   #preview thead { display: table-header-group; }
   #preview pre { white-space: pre-wrap; word-break: break-all; overflow: visible; break-inside: avoid; }
-  #preview .diagram { overflow: visible; }  #preview .page-break, #preview .pagebreak { break-after: page; height: 0 !important; margin: 0 !important; border: 0 !important; overflow: hidden; }
-  #preview .page-break::after, #preview .pagebreak::after { content: none !important; }
+  #preview .diagram { overflow: visible; }
+  #preview .page-break, #preview .pagebreak { break-after: page; height: 0 !important; margin: 0 !important; border: 0 !important; overflow: hidden; }
   #preview .page-break-before { break-before: page; }
   #preview .page-break-after { break-after: page; }
   #preview .page-break-avoid { break-inside: avoid; }
