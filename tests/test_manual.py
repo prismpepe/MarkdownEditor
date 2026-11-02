@@ -99,7 +99,7 @@ def test_登録用のファイルが説明されている():
         assert os.path.basename(cmd) in MANUAL, f"{os.path.basename(cmd)} が説明書にありません"
 
 
-@pytest.mark.parametrize("word", ["ダブルクリック", "ドラッグ＆ドロップ", "右クリック", "その他のオプションを表示", "コマンドライン", "起動しているウィンドウ"])
+@pytest.mark.parametrize("word", ["ダブルクリック", "ドラッグ＆ドロップ", "右クリック", "その他のオプションを表示", "Shift キーを押しながら", "コマンドライン", "起動しているウィンドウ"])
 def test_起動方法のキーワードが説明されている(word):
     assert word in MANUAL
 
