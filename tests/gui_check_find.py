@@ -67,6 +67,11 @@ def drive():
         check("Ctrl+H: 置換の行が、実際に見えている", js(VIS + "('rrow')"), True)
         js("finder.close(); openFind(false)")
         check("Ctrl+F: 検索バーは見え、置換の行は見えない（hidden 属性だけでなく、実際の表示）", (js(VIS + "('find')"), js(VIS + "('rrow')")), (True, False))
+        js("finder.close(); document.querySelector('#fmt [data-e=find]').click()")
+        check("🔍 ボタン: 検索だけが開く（置換の行は見えない）", (js(VIS + "('find')"), js(VIS + "('rrow')")), (True, False))
+        js("finder.close(); document.querySelector('#fmt [data-e=replace]').click()")
+        check("⇄ ボタン: 置換の行も見える", (js(VIS + "('find')"), js(VIS + "('rrow')")), (True, True))
+        check("⇄ ボタン: 検索欄に焦点がある（すぐ打てる）", js("document.activeElement.id"), 'fq')
         js("finder.close(); openFind(true)")
 
         setdoc("Apple apple APPLE banana\napple pie")
@@ -182,6 +187,7 @@ def drive():
         check("読み取り専用: 検索はできるが置換欄は出ない", js("[!document.getElementById('find').hidden, document.getElementById('rrow').hidden].join()"), "true,true")
         check("読み取り専用: 貼り付け・切り取りは使えない", js("['cut','paste'].every(k=>document.querySelector('#fmt [data-e='+k+']').disabled)"), True)
         check("読み取り専用: コピー・検索は使える", js("['copy','find'].every(k=>!document.querySelector('#fmt [data-e='+k+']').disabled)"), True)
+        check("読み取り専用: 置換ボタンは使えない", js("document.querySelector('#fmt [data-e=replace]').disabled"), True)
         js("doc.readonly=false; applyDocMeta(); finder.close()")
 
         # 貼り付けイベント（Ctrl+V でブラウザーが送るものと同じ）を編集欄へ送る。

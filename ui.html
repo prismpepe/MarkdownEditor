@@ -293,7 +293,8 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
             <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
             <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
             <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
-            <button data-e="find" title="検索・置換 (Ctrl+F / Ctrl+H)">🔍</button>
+            <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
+            <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
           </span>
           <span class="fgroup">
             <select id="fHead" title="見出しの段階を選ぶ（同じ段階をもう一度選ぶと本文に戻る）">
@@ -888,7 +889,7 @@ document.addEventListener('keydown', e => {
 function applyDocMeta() {
   $('selEnc').value = doc.encoding; $('selNl').value = doc.newline;
   cm.setOption('readOnly', doc.readonly ? true : false);
-  document.querySelectorAll('#fmt [data-f], #fmt select, #fmt [data-e=cut], #fmt [data-e=paste]').forEach(el => { el.disabled = doc.readonly; });
+  document.querySelectorAll('#fmt [data-f], #fmt select, #fmt [data-e=cut], #fmt [data-e=paste], #fmt [data-e=replace]').forEach(el => { el.disabled = doc.readonly; });
   if (typeof finder !== 'undefined' && finder) { $('rrow').hidden = $('rrow').hidden || doc.readonly; }
   updateEditButtons();
 }
@@ -1284,13 +1285,13 @@ function openFind(withReplace) {
 }
 const EDIT_ACTIONS = {
   undo: () => cm.undo(), redo: () => cm.redo(), cut: () => doCopy(true), copy: () => doCopy(false),
-  paste: doPaste, find: () => openFind(false),
+  paste: doPaste, find: () => openFind(false), replace: () => openFind(true),
 };
 function setupEditBar() {
   document.querySelectorAll('#fmt button[data-e]').forEach(b => b.addEventListener('click', async () => {
     const act = b.dataset.e;
     await EDIT_ACTIONS[act]();
-    if (act !== 'find') cm.focus();
+    if (act !== 'find' && act !== 'replace') cm.focus();          // 検索・置換のバーへ移るので、編集欄へは戻さない
   }));
 }
 
