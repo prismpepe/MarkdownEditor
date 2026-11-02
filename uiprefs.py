@@ -76,6 +76,19 @@ def clean_zoom(value):
     return {"value": round(z, 2), "fit": bool(value.get("fit"))}
 
 
+def clean_toc(value):
+    """目次の指定（含める見出しの範囲と、「目次」という見出しを除くか）。"""
+    if not isinstance(value, dict):
+        return None
+    lo, hi = value.get("min"), value.get("max")
+    for n in (lo, hi):
+        if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 6:
+            return None
+    if lo > hi:
+        return None
+    return {"min": lo, "max": hi, "skip": bool(value.get("skip"))}
+
+
 def clean_prefs(patch):
     """画面から受け取った設定のうち、正しいものだけを返す（書き込んでよい項目に限る）。"""
     out = {}
@@ -89,6 +102,10 @@ def clean_prefs(patch):
             out["zoom"] = zoom
     if "side_hidden" in patch:
         out["side_hidden"] = bool(patch["side_hidden"])
+    if "toc" in patch:
+        toc = clean_toc(patch["toc"])
+        if toc:
+            out["toc"] = toc
     return out
 
 

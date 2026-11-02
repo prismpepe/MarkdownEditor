@@ -26,6 +26,8 @@ import cjk_emphasis
 import clipboard
 import dialogs
 import filedrop
+import imgembed
+import toc
 import uiprefs
 import filemodel
 import printing
@@ -33,7 +35,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.7.2"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.8.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -273,6 +275,40 @@ class Api:
         if path:
             self._persist_location = True
         return path
+
+    # --- 画像の Base64 埋め込み・目次（imgembed.py / toc.py。画面は結果を受け取って本文へ反映する） ---
+    def pick_image(self, initial=None):
+        return dialogs.pick_image(self._initial_dir(initial))
+
+    def image_insert_parts(self, text, path):
+        try:
+            return imgembed.insert_new(text, path)
+        except OSError as e:
+            return {"error": "画像を読めません: %s" % e}
+
+    def embed_images(self, text, doc_path, dry_run=False):
+        """文書が参照する手元の画像を Base64 にした本文を返す（dry_run なら、変換の予定だけ）。"""
+        if not doc_path:
+            return {"error": "文書を保存してから使えます（保存先のない「無題」の文書では、相対パスの画像の場所が分からないため）"}
+        try:
+            return imgembed.embed(text, os.path.dirname(doc_path), dry_run=dry_run)
+        except OSError as e:
+            return {"error": "画像を読めません: %s" % e}
+
+    def externalize_images(self, text, doc_path, dry_run=False):
+        """Base64 の画像を、文書の隣の images フォルダーのファイルへ書き出し、本文を相対パスに戻す。"""
+        if not doc_path:
+            return {"error": "先に文書を保存してください（画像ファイルを、文書の隣の images フォルダーへ書き出すため）"}
+        try:
+            return imgembed.externalize(text, doc_path, dry_run=dry_run)
+        except OSError as e:
+            return {"error": "画像を書き出せません: %s" % e}
+
+    def make_toc(self, text, cursor_line=0, min_level=1, max_level=4, skip_title=True):
+        try:
+            return toc.update(text, self._md, int(cursor_line), int(min_level), int(max_level), bool(skip_title))
+        except Exception as e:                 # 見出しの読み取りの想定外の失敗で、画面を止めない
+            return {"error": "目次を作れませんでした: %s" % e}
 
     def pick_save(self, initial_dir=None, name="無題.md"):
         path = dialogs.pick_save(self._initial_dir(initial_dir), name)

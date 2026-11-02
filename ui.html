@@ -178,6 +178,9 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   padding: 20px 24px; width: min(520px, 90vw); box-shadow: 0 8px 30px rgba(0,0,0,.3); }
 #dlg h3 { margin: 0 0 8px; font-size: 16px; }
 #dlg p { margin: 0 0 16px; color: var(--muted); white-space: pre-wrap; word-break: break-all; }
+#dExtra:not(:empty) { margin: 0 0 16px; display: flex; flex-direction: column; gap: 10px; }
+#dExtra .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#dExtra select { font: inherit; padding: 3px 6px; }
 #dlg .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
 /* 印刷・PDF: 画面の部品を隠し、プレビューの本文だけを紙に流す */
@@ -320,6 +323,15 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
           <span class="fgroup">
             <select id="fDiagram" title="Mermaid の図・Vega-Lite のグラフを、ひな形から挿入する"><option value="">図を挿入…</option></select>
           </span>
+          <span class="fgroup">
+            <select id="fImage" title="画像を Base64 にして文書へ埋め込む（画像ファイルを別に添えずに、Markdown ファイル1つで配布できる）">
+              <option value="">画像の埋め込み…</option>
+              <option value="pick">画像ファイルを選んで挿入</option>
+              <option value="all">文書内の画像をすべて Base64 にする</option>
+              <option value="back">Base64 の画像をファイルへ戻す</option>
+            </select>
+            <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
+          </span>
         </div>
         <div id="find" hidden>
           <div class="frow">
@@ -367,7 +379,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <div class="row"><button id="fdReset">すべて既定に戻す</button><span class="grow"></span><button id="fdClose" class="primary">閉じる</button></div>
   </div>
 </div>
-<div id="veil"><div id="dlg"><h3 id="dTitle"></h3><p id="dText"></p><div class="btns" id="dBtns"></div></div></div>
+<div id="veil"><div id="dlg"><h3 id="dTitle"></h3><p id="dText"></p><div id="dExtra"></div><div class="btns" id="dBtns"></div></div></div>
 
 <script>
 /*VENDOR_JS*/
@@ -397,9 +409,10 @@ const baseName = p => p ? p.substring(p.lastIndexOf('\\') + 1) : '無題';
 const dirName = p => p.substring(0, p.lastIndexOf('\\'));
 
 // 画面内の確認ダイアログ。押したボタンの番号を返す（Esc は最後のボタン＝取り消し）
-function ask(title, text, buttons) {
+function ask(title, text, buttons, extra) {
   return new Promise(resolve => {
     $('dTitle').textContent = title; $('dText').textContent = text;
+    $('dExtra').textContent = ''; if (extra) $('dExtra').appendChild(extra);
     const box = $('dBtns'); box.textContent = '';
     const done = i => { $('veil').classList.remove('show'); document.removeEventListener('keydown', onKey, true); resolve(i); };
     function onKey(e) {
@@ -1082,6 +1095,100 @@ async function handleDrop(kind, path) {
   if (kind === 'folder') await switchFolder(path); else await openPath(path);
 }
 
+// ============================================================ 画像の Base64 埋め込み・目次
+// 本文全体の置き換えを、変わった範囲だけの編集にする（カーソル・スクロール・元に戻す履歴を保つ）
+function applyTextEdit(newText) {
+  const old = cm.getValue();
+  if (newText === old) return false;
+  const max = Math.min(old.length, newText.length);
+  let a = 0, b = 0;
+  while (a < max && old.charCodeAt(a) === newText.charCodeAt(a)) a++;
+  while (b < max - a && old.charCodeAt(old.length - 1 - b) === newText.charCodeAt(newText.length - 1 - b)) b++;
+  const high = c => c >= 0xD800 && c <= 0xDBFF, low = c => c >= 0xDC00 && c <= 0xDFFF;
+  if (a > 0 && high(old.charCodeAt(a - 1))) a--;                        // サロゲートペアの途中で切らない
+  if (b > 0 && low(old.charCodeAt(old.length - b))) b--;
+  cm.operation(() => cm.replaceRange(newText.slice(a, newText.length - b), cm.posFromIndex(a), cm.posFromIndex(old.length - b)));
+  return true;
+}
+const fmtBytes = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+const listLines = (items, fmt, max = 8) => items.slice(0, max).map(fmt).join('\n') + (items.length > max ? `\n…ほか ${items.length - max} 件` : '');
+
+async function embedPickImage() {
+  const p = await api.pick_image(doc.path ? dirName(doc.path) : folder);
+  if (!p) return;
+  const r = await api.image_insert_parts(cm.getValue(), p);
+  if (r.error) { status(r.error, true, 6000); return; }
+  cm.operation(() => {
+    cm.replaceSelection(r.ref);
+    const text = cm.getValue(), lastLine = text.replace(/\n+$/, '').split('\n').pop();
+    const sep = /^ {0,3}\[[^\]]+\]:\s/.test(lastLine) ? (text.endsWith('\n') ? '' : '\n') : (text.endsWith('\n\n') ? '' : text.endsWith('\n') ? '\n' : '\n\n');
+    cm.replaceRange(sep + r.definition + '\n', { line: cm.lineCount() - 1, ch: cm.getLine(cm.lineCount() - 1).length });
+  });
+  cm.focus();
+  status(`画像を埋め込みました（${fmtBytes(r.bytes)}）。画像のデータは文末にあります`, false, 6000);
+}
+
+async function embedAllImages() {
+  const plan = await api.embed_images(cm.getValue(), doc.path, true);
+  if (plan.error) { status(plan.error, true, 6000); return; }
+  if (!plan.converted.length) {
+    status(plan.skipped.length ? '変換できる画像がありません: ' + plan.skipped[0].reason + '（' + plan.skipped[0].src + '）' : '文書内に、変換できる画像（相対パスの画像）がありません', true, 6000);
+    return;
+  }
+  const total = plan.converted.reduce((n, c) => n + c.bytes, 0);
+  let text = `${plan.converted.length} 件の画像（合計 ${fmtBytes(total)}）を Base64 にして、文書へ埋め込みます。\n` +
+    `文書のファイルは、約 ${fmtBytes(Math.round(total * 4 / 3))} 大きくなります。書き方は参照形式です（本文は短いまま、画像のデータは文末にまとまります）。\n\n` +
+    listLines(plan.converted, c => `・${c.path.split(/[\\/]/).pop()}（${fmtBytes(c.bytes)}）`);
+  if (plan.skipped.length) text += '\n\n変換しないもの:\n' + listLines(plan.skipped, s => `・${s.src} — ${s.reason}`, 5);
+  if (await ask('画像を Base64 にする', text, [{ label: '埋め込む', primary: true }, { label: '取り消し' }]) !== 0) return;
+  const r = await api.embed_images(cm.getValue(), doc.path, false);
+  if (r.error) { status(r.error, true, 6000); return; }
+  applyTextEdit(r.text); cm.focus();
+  status(`${r.converted.length} 件の画像を埋め込みました（元に戻すには Ctrl+Z）`, false, 6000);
+}
+
+async function embedBackToFiles() {
+  if (!doc.path) { status('先に文書を保存してください（画像ファイルを、文書の隣の images フォルダーへ書き出すため）', true, 6000); return; }
+  const plan = await api.externalize_images(cm.getValue(), doc.path, true);
+  if (plan.error) { status(plan.error, true, 6000); return; }
+  if (!plan.written.length) { status('ファイルに戻せる Base64 の画像が、文書内にありません', true, 5000); return; }
+  const total = plan.written.reduce((n, w) => n + w.bytes, 0);
+  const text = `${plan.written.length} 件の画像（合計 ${fmtBytes(total)}）を、文書の隣の images フォルダーのファイルへ書き出し、文書の中のデータを相対パスに戻します。\n` +
+    '同じ内容のファイルがあればそれを使い、別の内容のファイルは上書きしません。\n\n' +
+    listLines(plan.written, w => `・${w.name}（${fmtBytes(w.bytes)}）${w.reused ? ' ※同じ内容のファイルがあるので再利用' : ''}`);
+  if (await ask('Base64 の画像をファイルへ戻す', text, [{ label: '書き出す', primary: true }, { label: '取り消し' }]) !== 0) return;
+  const r = await api.externalize_images(cm.getValue(), doc.path, false);
+  if (r.error) { status(r.error, true, 6000); return; }
+  applyTextEdit(r.text); cm.focus();
+  status(`${r.written.length} 件の画像を images フォルダーへ書き出しました（元に戻すには Ctrl+Z。書き出したファイルは残ります）`, false, 7000);
+}
+
+const TOC_MARK = /^[ \t]*<!--\s*toc\s*-->[ \t]*$/im;
+async function tocDialog() {
+  if (doc.readonly) return;
+  const saved = prefs.toc || { min: 1, max: 4, skip: true };
+  const mk = (id, v) => { const sel = document.createElement('select'); sel.id = id; for (let n = 1; n <= 6; n++) sel.add(new Option('見出し' + n, n)); sel.value = v; return sel; };
+  const extra = document.createElement('div');
+  const row1 = document.createElement('div'); row1.className = 'row';
+  const lo = mk('tocMin', saved.min), hi = mk('tocMax', saved.max);
+  row1.append('含める見出し: ', lo, ' から ', hi, ' まで');
+  const row2 = document.createElement('label'); row2.className = 'row';
+  const skip = document.createElement('input'); skip.type = 'checkbox'; skip.checked = !!saved.skip;
+  row2.append(skip, '「目次」という見出しは含めない');
+  extra.append(row1, row2);
+  const has = TOC_MARK.test(cm.getValue());
+  const text = has ? '<!-- toc --> と <!-- /toc --> の間の目次を、いまの見出しで作り直します。'
+    : 'カーソルの位置に目次を入れます。前後に <!-- toc --> と <!-- /toc --> の印を付けるので、見出しを直したあとは、もう一度押すと、その間だけが更新されます。';
+  if (await ask('目次を作る', text, [{ label: has ? '更新する' : '挿入する', primary: true }, { label: '取り消し' }], extra) !== 0) return;
+  let min = +lo.value, max = +hi.value;
+  if (min > max) [min, max] = [max, min];
+  const r = await api.make_toc(cm.getValue(), cm.getCursor().line, min, max, skip.checked);
+  if (r.error) { status(r.error, true, 6000); return; }
+  prefs.toc = { min, max, skip: skip.checked }; api.set_prefs({ toc: prefs.toc });
+  applyTextEdit(r.text); cm.focus();
+  status(`目次を${r.updated ? '更新' : '挿入'}しました（${r.count} 項目${r.added_ids ? `。HTML の見出し ${r.added_ids} か所に id を追加` : ''}。元に戻すには Ctrl+Z）`, false, 7000);
+}
+
 // ============================================================ 表示の切り替え・幅
 // 一覧・編集・プレビューのどれを出すかは、この4つのモードを1か所で切り替える。一覧が出るのは3画面のときだけ
 const VIEWS = ['triple', 'split', 'edit', 'preview'];
@@ -1137,6 +1244,11 @@ function setupFormatBar() {
   $('fHead').onchange = () => { const v = $('fHead').value; $('fHead').value = ''; if (v !== '') runFormat(() => MdFormat.heading(cm, +v)); };
   for (const [k, d] of Object.entries(MdFormat.DIAGRAMS)) $('fDiagram').add(new Option(d[0], k));
   for (const [k, c] of Object.entries(MdFormat.CHARTS)) $('fDiagram').add(new Option(c[0], 'chart:' + k));
+  $('fImage').onchange = () => {
+    const v = $('fImage').value; $('fImage').value = ''; if (!v || doc.readonly) return;
+    ({ pick: embedPickImage, all: embedAllImages, back: embedBackToFiles })[v]();
+  };
+  $('fToc').onclick = tocDialog;
   $('fDiagram').onchange = () => { const v = $('fDiagram').value; $('fDiagram').value = ''; if (!v) return; runFormat(() => v.startsWith('chart:') ? MdFormat.chart(cm, v.slice(6)) : MdFormat.diagram(cm, v)); };
 }
 

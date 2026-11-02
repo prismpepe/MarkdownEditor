@@ -56,6 +56,28 @@ def pick_file(initial_dir=None):
     return None
 
 
+def pick_image(initial_dir=None):
+    """画像ファイルを1つ選ぶ（Base64 で文書へ埋め込むもの）。SVG は埋め込めないので、一覧に出さない。"""
+    buf = ctypes.create_unicode_buffer(32768)
+    filt = ctypes.create_unicode_buffer(
+        "画像 (*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp)\0*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp\0"
+        "All files (*.*)\0*.*\0\0", 256)
+    ofn = OPENFILENAMEW()
+    ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
+    ofn.hwndOwner = user32.GetForegroundWindow()
+    ofn.lpstrFilter = ctypes.cast(filt, wintypes.LPCWSTR)
+    ofn.nFilterIndex = 1
+    ofn.lpstrFile = ctypes.cast(buf, wintypes.LPWSTR)
+    ofn.nMaxFile = len(buf)
+    ofn.lpstrInitialDir = initial_dir
+    ofn.lpstrTitle = "埋め込む画像を選ぶ"
+    ofn.Flags = (OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER
+                 | OFN_NOCHANGEDIR)
+    if comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):
+        return buf.value
+    return None
+
+
 OFN_OVERWRITEPROMPT = 0x2
 
 
