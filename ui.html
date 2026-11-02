@@ -643,9 +643,13 @@ function cssFamily(s) {                 // 入力されたフォント名を、C
 }
 const fontPref = part => (prefs.fonts && prefs.fonts[part]) || {};
 
+// 図・グラフの文字の後ろに必ず足す、日本語の字形を持つフォント。指定のフォントに日本語の字形が無いと、ブラウザーが
+// システムの代替フォントを使い、PDF に Type3 フォントとして埋め込まれる。Acrobat Reader は、それを開くときに
+// 「埋め込みフォント T3Font_n を抽出できません」と警告する。日本語のフォントを明示しておくと、通常の形で埋め込まれる
+const DIAGRAM_JP_FONTS = '"Yu Gothic UI", "Meiryo"';
 function mermaidConfig(theme) {         // 既定値も毎回すべて渡す（前の設定が残らないように）
   const d = fontPref('diagram'), size = d.size || FONT_PARTS.diagram.size;
-  const fam = cssFamily(d.family) || FONT_PARTS.diagram.family;
+  const fam = (cssFamily(d.family) || '"trebuchet ms", verdana, arial') + ', ' + DIAGRAM_JP_FONTS + ', sans-serif';
   const k = size / FONT_PARTS.diagram.size;
   return {
     startOnLoad: false, securityLevel: 'strict',
@@ -658,23 +662,23 @@ function mermaidConfig(theme) {         // 既定値も毎回すべて渡す（�
 function vegaConfig() {
   // 軸・凡例・タイトル・見出し・文字の各部分に、名前と大きさを渡す（Vega-Lite の既定の大きさに、Mermaid と同じ倍率を掛ける）。
   // 設定していない項目は渡さず、Vega-Lite の既定のままにする。spec 自身が config や fontSize を持つときは、そちらが優先される
-  const d = fontPref('diagram'), fam = cssFamily(d.family);
-  const cfg = { background: '#ffffff' };
-  if (fam) cfg.font = fam;
-  if (!fam && !d.size) return cfg;
+  const d = fontPref('diagram'), picked = cssFamily(d.family);
+  const fam = (picked || 'arial') + ', ' + DIAGRAM_JP_FONTS + ', sans-serif';     // 日本語の字形を持つフォントを後ろに足す（DIAGRAM_JP_FONTS を参照）
+  const cfg = { background: '#ffffff', font: fam };
+  if (!picked && !d.size) return cfg;
   const k = (d.size || FONT_PARTS.diagram.size) / FONT_PARTS.diagram.size, px = n => Math.round(n * k * 10) / 10;
   const f = (label, title) => {
     const o = {};
-    if (fam) { if (label) o[label[0]] = fam; if (title) o[title[0]] = fam; }
+    if (picked) { if (label) o[label[0]] = fam; if (title) o[title[0]] = fam; }
     if (d.size) { if (label) o[label[1]] = px(label[2]); if (title) o[title[1]] = px(title[2]); }
     return o;
   };
   cfg.axis = f(['labelFont', 'labelFontSize', 10], ['titleFont', 'titleFontSize', 11]);
   cfg.legend = f(['labelFont', 'labelFontSize', 10], ['titleFont', 'titleFontSize', 11]);
   cfg.header = f(['labelFont', 'labelFontSize', 10], ['titleFont', 'titleFontSize', 10]);
-  cfg.title = fam ? { font: fam, subtitleFont: fam } : {};
+  cfg.title = picked ? { font: fam, subtitleFont: fam } : {};
   if (d.size) { cfg.title.fontSize = px(13); cfg.title.subtitleFontSize = px(12); cfg.text = { fontSize: px(11) }; }
-  if (fam) cfg.text = Object.assign(cfg.text || {}, { font: fam });
+  if (picked) cfg.text = Object.assign(cfg.text || {}, { font: fam });
   return cfg;
 }
 

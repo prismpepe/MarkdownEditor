@@ -82,6 +82,27 @@ def wait_text(code, pred, timeout=15):
     return js(code)
 
 
+# ---- 図・グラフの日本語が、PDF で Type3 フォントにならないこと（Acrobat Reader の警告「T3Font_n を抽出できません」の原因）
+import zlib
+VEGA_SPEC = {"$schema": "https://vega.github.io/schema/vega-lite/v5.json", "title": "売上の推移",
+             "data": {"values": [{"月": "一月", "売上": 3}, {"月": "二月", "売上": 5}]}, "mark": "bar",
+             "encoding": {"x": {"field": "月", "type": "nominal"}, "y": {"field": "売上", "type": "quantitative"}}}
+FONT_DOCS = {
+    'mermaid': "# 図\n\n```mermaid\nflowchart LR\n  A[開始] --> B{判断}\n  B -->|はい| C[処理]\n  B -->|いいえ| D[終了]\n```\n",
+    'vega': "# グラフ\n\n```vega-lite\n" + json.dumps(VEGA_SPEC, ensure_ascii=False) + "\n```\n",
+}
+
+
+def type3_count(data):
+    blobs = [data]
+    for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', data, re.S):
+        try:
+            blobs.append(zlib.decompress(m.group(1)))
+        except Exception:
+            pass
+    return len(re.findall(rb'/Subtype\s*/Type3', b'\n'.join(blobs)))
+
+
 def drive():
     time.sleep(8)
     n = pages()
@@ -198,6 +219,19 @@ def drive():
 
     saved = mdeditor.load_settings().get("print", {})
     check("ページ範囲は保存されない（次回は「すべて」から始まる）", ("ranges" in saved, "rangeAll" in saved), (False, False))
+
+    # 図・グラフの日本語は、Type3 フォントにならない（Reader の警告の原因）。図のフォントが日本語を持たない場合（Segoe UI）も同じ
+    for kind in ('mermaid', 'vega'):
+        for fam in ('', 'Segoe UI'):
+            js("prefs.fonts = Object.assign({}, prefs.fonts, {diagram: {family: %s}}); applyFonts();" % json.dumps(fam))
+            js("cm.setValue(%s)" % json.dumps(FONT_DOCS[kind]))
+            time.sleep(6)
+            out = os.path.join(tmp, f"fonts_{kind}_{len(os.listdir(tmp))}.pdf")
+            r = api.print_save_pdf({**BASE, 'uri': src}, '', out)
+            check("%s の日本語は Type3 フォントにならない（図のフォント: %s）" % (kind, fam or '既定'),
+                  type3_count(open(out, 'rb').read()) if r['ok'] else r, 0)
+    js("prefs.fonts = Object.assign({}, prefs.fonts, {diagram: {family: ''}}); applyFonts();")
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
     api._closing = True
