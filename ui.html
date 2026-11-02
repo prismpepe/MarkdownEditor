@@ -8,6 +8,9 @@
 /*VENDOR_CSS*/
 </style>
 <style>
+/* hidden 属性の要素は、必ず隠す。display を指定した規則（.frow { display: flex } など）が、hidden を打ち消して表示してしまうため
+   （Ctrl+F の検索バーに、置換の行が出ていた）。要素ごとの [hidden] の規則は、これに任せる */
+[hidden] { display: none !important; }
 :root {
   --bg: #ffffff; --fg: #1f2328; --muted: #656d76; --side: #f6f8fa;
   --border: #d0d7de; --accent: #0969da; --sel: #ddf4ff; --code: #f3f4f6;

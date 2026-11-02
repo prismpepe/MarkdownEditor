@@ -63,6 +63,11 @@ def drive():
         time.sleep(6)
         js("openFind(true)")
         check("検索バーが開く（置換欄つき）", js("[!document.getElementById('find').hidden, !document.getElementById('rrow').hidden].join()"), "true,true")
+        VIS = "(id => { const e = document.getElementById(id); return e.getBoundingClientRect().height > 0 && getComputedStyle(e).display !== 'none'; })"
+        check("Ctrl+H: 置換の行が、実際に見えている", js(VIS + "('rrow')"), True)
+        js("finder.close(); openFind(false)")
+        check("Ctrl+F: 検索バーは見え、置換の行は見えない（hidden 属性だけでなく、実際の表示）", (js(VIS + "('find')"), js(VIS + "('rrow')")), (True, False))
+        js("finder.close(); openFind(true)")
 
         setdoc("Apple apple APPLE banana\napple pie")
         setq("apple")

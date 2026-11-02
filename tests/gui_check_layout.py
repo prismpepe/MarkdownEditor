@@ -90,6 +90,10 @@ def click_dialog(label):
 
 
 def finish():
+    # hidden 属性の要素は、実際に隠れている（display を指定した CSS が、hidden を打ち消していないか）
+    shown = js("[...document.querySelectorAll('[hidden]')].filter(e => getComputedStyle(e).display !== 'none').map(e => e.id || e.className || e.tagName)")
+    check("hidden 属性の要素が、すべて隠れている", shown, [])
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
     api._closing = True
