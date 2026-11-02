@@ -2,7 +2,8 @@
 
 方針は許可リスト方式。ここに無いタグは外し（中身は残す）、script・style・
 iframe など中身ごと危険なものは中身も捨てる。on* 属性・javascript: のリンクは
-落とす。style 属性は、改ページの指定（page-break-after: always など）だけ残す。構文エラーのある HTML でも出力は必ず
+落とす。style 属性は、改ページの指定（page-break-after: always など）と、
+表のセルの text-align（Markdown の列の配置）だけ残す。構文エラーのある HTML でも出力は必ず
 ここで組み立て直したものだけになる。
 """
 import html
@@ -50,14 +51,24 @@ PAGE_BREAK_VALUES = {"auto", "always", "avoid", "page", "left", "right", "recto"
                      "avoid-page"}
 
 
-def safe_style(value):
-    """許可した改ページの宣言だけを集めて返す。1つも無ければ None。"""
+# 表のセルの左寄せ・中央寄せ・右寄せ。Markdown の `|:--|:-:|--:|` は、変換されると
+# `<th style="text-align:center">` になる。これを落とすと、コロンで指定した配置が効かなくなる。
+CELL_TAGS = {"th", "td"}
+TEXT_ALIGN_VALUES = {"left", "center", "right", "justify"}
+
+
+def safe_style(value, tag=""):
+    """許可した宣言（改ページ、表のセルの text-align）だけを集めて返す。1つも無ければ None。"""
     kept = []
     for decl in html.unescape(value).split(";"):
         name, sep, val = decl.partition(":")
         name, val = name.strip().lower(), val.strip().lower()
-        if sep and name in PAGE_BREAK_PROPS and val in PAGE_BREAK_VALUES:
+        if not sep:
+            continue
+        if name in PAGE_BREAK_PROPS and val in PAGE_BREAK_VALUES:
             kept.append(f"{name}: {val}")
+        elif name == "text-align" and tag in CELL_TAGS and val in TEXT_ALIGN_VALUES:
+            kept.append(f"text-align: {val}")
     return "; ".join(kept) or None
 
 
@@ -107,7 +118,7 @@ class _Sanitizer(HTMLParser):
             if tag == "input" and name == "type" and value.lower() != "checkbox":
                 return                      # チェックボックス以外の入力欄は出さない
             if name == "style":
-                value = safe_style(value)
+                value = safe_style(value, tag)
             elif name == "href":
                 value = safe_url(value, LINK_SCHEMES)
             elif name == "src":

@@ -46,3 +46,21 @@ def test_危険な値や知らない値は落ちる(style):
 def test_スクリプトは従来どおり動かない():
     out = sanitize('<div class="page-break" onclick="x()"></div><script>x()</script>')
     assert out == '<div class="page-break"></div>'
+
+
+# ---- 表の列の配置（Markdown の |:--|:-:|--:|）
+@pytest.mark.parametrize("align", ["left", "center", "right"])
+@pytest.mark.parametrize("tag", ["th", "td"])
+def test_表のセルの配置は残る(tag, align):
+    assert sanitize(f'<{tag} style="text-align:{align}">x</{tag}>') == f'<{tag} style="text-align: {align}">x</{tag}>'
+
+
+def test_セル以外のtext_alignは落ちる():
+    assert sanitize('<p style="text-align:center">x</p>') == '<p>x</p>'
+    assert sanitize('<div style="text-align:right">x</div>') == '<div>x</div>'
+
+
+def test_text_alignの知らない値は落ちる():
+    assert sanitize('<td style="text-align:url(javascript:x)">x</td>') == '<td>x</td>'
+    assert sanitize('<td style="text-align:start; color:red">x</td>') == '<td>x</td>'
+
