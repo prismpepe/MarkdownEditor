@@ -15,7 +15,7 @@
   /* 表示フォント（フォントの設定で変わる。--head-font は設定したときだけ入る） */
   --ui-font: "Yu Gothic UI", "Segoe UI", sans-serif;
   --edit-font: Consolas, "BIZ UDGothic", "Yu Gothic UI", monospace;
-  --body-font: "Yu Gothic UI", "Segoe UI", sans-serif; --body-size: 14px;
+  --body-font: "Yu Gothic UI", "Segoe UI"; --body-size: 14px;
   --code-font: Consolas, "Cascadia Mono", monospace; --code-size: 13px;
 }
 @media (prefers-color-scheme: dark) {
@@ -141,7 +141,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 .cm-searching { background: #ffd33d66; }
 
 /* プレビュー */
-#preview { font-family: var(--body-font); font-size: var(--body-size); }
+#preview { font-family: var(--body-font), sans-serif; font-size: var(--body-size); }
 #preview h1, #preview h2, #preview h3, #preview h4, #preview h5, #preview h6 { font-family: var(--head-font, inherit); }
 #preview h1 { font-size: var(--h1-size, 2em); }
 #preview h2 { font-size: var(--h2-size, 1.5em); }
@@ -219,6 +219,11 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   #body, #main, #panes, #previewPane, #pscroll { display: block !important; overflow: visible !important;
     height: auto !important; width: auto !important; flex: none !important; min-height: 0 !important; }
   #preview { zoom: 1 !important; padding: 0 !important; }
+  /* 本文の文字を、PDF で正しく埋め込める形で出す（Acrobat Reader の警告「埋め込みフォント T3Font_n を抽出できません」の対策）。
+     ・絵文字は、そのままだとカラー絵文字になり、PDF では Type3 フォントとして埋め込まれる。文字として描く（font-variant-emoji）
+     ・本文のフォントに字形が無い記号（▦ など）は、システムの代替フォントが使われ、これも Type3 になる。
+       埋め込める日本語フォント（メイリオ、MS ゴシック）を、総称名（sans-serif）より前に足しておく */
+  #preview { font-family: var(--body-font), "Meiryo", "MS Gothic", sans-serif; font-variant-emoji: text; }
   #preview h1, #preview h2, #preview h3, #preview h4, #preview h5, #preview h6 { break-after: avoid; }
   #preview tr, #preview img, #preview .diagram, #preview blockquote, #preview li { break-inside: avoid; }
   #preview thead { display: table-header-group; }

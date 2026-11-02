@@ -89,6 +89,8 @@ VEGA_SPEC = {"$schema": "https://vega.github.io/schema/vega-lite/v5.json", "titl
              "encoding": {"x": {"field": "月", "type": "nominal"}, "y": {"field": "売上", "type": "quantitative"}}}
 FONT_DOCS = {
     'mermaid': "# 図\n\n```mermaid\nflowchart LR\n  A[開始] --> B{判断}\n  B -->|はい| C[処理]\n  B -->|いいえ| D[終了]\n```\n",
+    'symbols': "# 記号\n\nボタン 📁 📄 🔍 💾 🔗 と ▦ ① → ✓ ⚠ ★ の記号\n",
+    'mermaid_emoji': "```mermaid\nflowchart LR\n  A[🙂 開始] --> B[📄 文書]\n```\n",
     'vega': "# グラフ\n\n```vega-lite\n" + json.dumps(VEGA_SPEC, ensure_ascii=False) + "\n```\n",
 }
 
@@ -220,8 +222,8 @@ def drive():
     saved = mdeditor.load_settings().get("print", {})
     check("ページ範囲は保存されない（次回は「すべて」から始まる）", ("ranges" in saved, "rangeAll" in saved), (False, False))
 
-    # 図・グラフの日本語は、Type3 フォントにならない（Reader の警告の原因）。図のフォントが日本語を持たない場合（Segoe UI）も同じ
-    for kind in ('mermaid', 'vega'):
+    # 図・グラフの日本語、絵文字・記号は、Type3 フォントにならない（Reader の警告の原因）。図のフォントが日本語を持たない場合（Segoe UI）も同じ
+    for kind in ('mermaid', 'vega', 'symbols', 'mermaid_emoji'):
         for fam in ('', 'Segoe UI'):
             js("prefs.fonts = Object.assign({}, prefs.fonts, {diagram: {family: %s}}); applyFonts();" % json.dumps(fam))
             js("cm.setValue(%s)" % json.dumps(FONT_DOCS[kind]))
