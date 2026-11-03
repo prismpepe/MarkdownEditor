@@ -78,12 +78,35 @@ def pick_image(initial_dir=None):
     return None
 
 
+def pick_data(initial_dir=None):
+    """表のデータ（CSV など）のファイルを1つ選ぶ。"""
+    buf = ctypes.create_unicode_buffer(32768)
+    filt = ctypes.create_unicode_buffer(
+        "表のデータ (*.csv;*.tsv;*.txt)\0*.csv;*.tsv;*.txt\0"
+        "All files (*.*)\0*.*\0\0", 256)
+    ofn = OPENFILENAMEW()
+    ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
+    ofn.hwndOwner = user32.GetForegroundWindow()
+    ofn.lpstrFilter = ctypes.cast(filt, wintypes.LPCWSTR)
+    ofn.nFilterIndex = 1
+    ofn.lpstrFile = ctypes.cast(buf, wintypes.LPWSTR)
+    ofn.nMaxFile = len(buf)
+    ofn.lpstrInitialDir = initial_dir
+    ofn.lpstrTitle = "読み込む CSV ファイルを選ぶ"
+    ofn.Flags = (OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER
+                 | OFN_NOCHANGEDIR)
+    if comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):
+        return buf.value
+    return None
+
+
 OFN_OVERWRITEPROMPT = 0x2
 
 
 SAVE_KINDS = {
     "md": ("Markdown (*.md)", "*.md", "md", "名前を付けて保存"),
     "pdf": ("PDF (*.pdf)", "*.pdf", "pdf", "PDF として保存"),
+    "json": ("JSON (*.json)", "*.json", "json", "JSON ファイルとして保存"),
 }
 
 

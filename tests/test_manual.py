@@ -62,6 +62,11 @@ def test_章の参照が実在する章を指している():
         assert (int(n), title.strip()) in CHAPTERS, f"存在しない章を参照しています: {n}. {title}"
 
 
+def test_第N章の書き方を使わない():
+    """「第10章」のような参照は、章の番号が変わってもずれに気づけない。「10. 章の名前」の形なら、点検できる。"""
+    assert not re.search(r"第\d+章", MANUAL)
+
+
 def test_バージョン番号を直接書かない():
     assert not re.search(r"\bv\d+\.\d+\.\d+\b", MANUAL), "バージョンは、更新のたびに古くなるので、書かない"
 

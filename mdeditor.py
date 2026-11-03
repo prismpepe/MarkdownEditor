@@ -27,6 +27,7 @@ import clipboard
 import dialogs
 import filedrop
 import imgembed
+import tabular
 import toc
 import uiprefs
 import filemodel
@@ -35,7 +36,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.8.2"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.9.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -303,6 +304,70 @@ class Api:
             return imgembed.externalize(text, doc_path, dry_run=dry_run)
         except OSError as e:
             return {"error": "画像を書き出せません: %s" % e}
+
+    # --- 表・データの取り込み（tabular.py）。Excel のセル・CSV を、Markdown の表や JSON にする ---
+    TABLE_EXTENSIONS = (".csv", ".tsv", ".txt")
+
+    def pick_data_file(self, initial=None):
+        return dialogs.pick_data(self._initial_dir(initial))
+
+    def read_table_file(self, path):
+        """CSV などのファイルを読んで、本文を返す（文字コードは、UTF-8・Shift-JIS などを自動で判別する）。"""
+        if not str(path).lower().endswith(self.TABLE_EXTENSIONS):
+            return {"error": "読めるファイルは .csv / .tsv / .txt です"}
+        try:
+            if os.path.getsize(path) > MAX_DATA_FILE:
+                return {"error": "ファイルが大きすぎます（20MBまで）"}
+            doc = filemodel.read_document(path)
+        except OSError as e:
+            return {"error": "ファイルを読めません: %s" % e}
+        except UnicodeDecodeError:
+            return {"error": "文字コードを判別できません"}
+        if doc["readonly"]:
+            return {"error": "文字コードを判別できません（UTF-8 か Shift-JIS のファイルを選んでください）"}
+        return {"text": doc["text"], "name": os.path.basename(path)}
+
+    def table_convert(self, text, opts=None, limit=0):
+        opts = opts if isinstance(opts, dict) else {}
+        try:
+            return tabular.convert(
+                text, fmt=opts.get("fmt", "md"), delimiter=opts.get("delim", "auto"), header=bool(opts.get("header", True)),
+                align=opts.get("align", "auto"), numbers=bool(opts.get("numbers", True)), empty=opts.get("empty", "null"),
+                fence=bool(opts.get("fence", False)), limit=int(limit or 0))
+        except Exception as e:                 # 想定外の失敗で、画面を止めない
+            return {"error": "変換できませんでした: %s" % e}
+
+    def pick_json_save(self, doc_path=None, name="data.json"):
+        """JSON の保存先を選ぶ。文書の隣の data フォルダー（あれば）か、文書のフォルダーから始める。"""
+        start = None
+        if doc_path:
+            base = os.path.dirname(doc_path)
+            start = os.path.join(base, "data") if os.path.isdir(os.path.join(base, "data")) else base
+        path = dialogs.pick_save(self._initial_dir(start), name, kind="json")
+        if path:
+            self._persist_location = True
+        return path
+
+    def write_json_file(self, path, text, doc_path=None):
+        """JSON をファイルに書く（UTF-8、BOM なし）。文書のフォルダーの中なら、data.url に書く相対パスも返す。"""
+        path = str(path)
+        if not path.lower().endswith(".json"):
+            path += ".json"
+        try:
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(text if text.endswith("\n") else text + "\n")
+        except OSError as e:
+            return {"error": "保存できませんでした: %s" % e}
+        rel = None
+        if doc_path:
+            base = os.path.dirname(os.path.abspath(doc_path))
+            try:
+                r = os.path.relpath(path, base)
+                if not r.startswith("..") and not os.path.isabs(r):
+                    rel = r.replace(os.sep, "/")
+            except ValueError:
+                pass
+        return {"ok": True, "path": path, "relative": rel}
 
     def make_toc(self, text, cursor_line=0, min_level=1, max_level=4, skip_title=True):
         try:

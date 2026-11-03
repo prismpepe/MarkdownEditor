@@ -189,6 +189,21 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 /* 印刷・PDF: 画面の部品を隠し、プレビューの本文だけを紙に流す */
 
 /* フォントの設定ダイアログ */
+#tveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+#tdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; width: min(780px, 94vw); max-height: 92vh; overflow: auto; font: 14px/1.5 "Yu Gothic UI", "Segoe UI", sans-serif; }
+#tdlg h3 { margin: 0 0 6px; }
+#tdlg .hint { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+#tdlg .trow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 8px; }
+#tdlg textarea { width: 100%; height: 130px; box-sizing: border-box; font: 13px/1.4 Consolas, "BIZ UDGothic", monospace; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; resize: vertical; white-space: pre; }
+#tdlg select { font: inherit; padding: 3px 6px; }
+#tdlg label { white-space: nowrap; }
+#tInfo { font-size: 12px; color: var(--muted); }
+#tInfo.bad { color: var(--danger, #b00); }
+#tPrev { margin: 0; width: 100%; box-sizing: border-box; padding: 8px 10px; background: var(--code); border: 1px solid var(--border); border-radius: 6px;
+  min-height: 3em; max-height: 190px; overflow: auto; font: 12px/1.4 Consolas, "BIZ UDGothic", monospace; white-space: pre; }
+#tdlg .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
 #fveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
 #fveil[hidden] { display: none; }
 #fdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
@@ -335,6 +350,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               <option value="back">Base64 の画像をファイルへ戻す</option>
             </select>
             <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
+            <button id="fTable" title="Excel のセルや CSV ファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
           </span>
         </div>
         <div id="find" hidden>
@@ -374,6 +390,29 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   </div>
 </div>
 <div id="ctx" hidden></div>
+<div id="tveil" hidden>
+  <div id="tdlg" role="dialog" aria-label="表・データの取り込み">
+    <h3>表・データの取り込み</h3>
+    <p class="hint">Excel のセルをコピーして、下の欄に貼り付ける（Ctrl+V）か、CSV ファイルを読み込みます。同じデータから、Markdown の表と、JSON（Vega-Lite などで使うデータ）を作れます。</p>
+    <div class="trow"><textarea id="tSrc" placeholder="ここに Excel のセルを貼り付けます（Ctrl+V）。1行目に、列の名前を入れてコピーしてください" spellcheck="false"></textarea></div>
+    <div class="trow"><button id="tClip">クリップボードから貼り付け</button><button id="tFile">CSV ファイルを読み込む…</button><span id="tInfo"></span></div>
+    <div class="trow">
+      <label>出力: <select id="tFmt"><option value="md">Markdown の表</option><option value="json">JSON（Vega-Lite などのデータ）</option></select></label>
+      <label>区切り: <select id="tDelim"><option value="auto">自動</option><option value="tab">タブ（Excel）</option><option value="comma">カンマ（CSV）</option><option value="semicolon">セミコロン</option></select></label>
+      <label><input id="tHead" type="checkbox" checked> 1行目を、列の名前にする</label>
+    </div>
+    <div class="trow" id="tMdOpts">
+      <label>列の配置: <select id="tAlign"><option value="auto">自動（数値だけの列は右寄せ）</option><option value="left">すべて左寄せ</option><option value="center">すべて中央</option><option value="right">すべて右寄せ</option><option value="none">指定しない</option></select></label>
+    </div>
+    <div class="trow" id="tJsonOpts">
+      <label><input id="tNum" type="checkbox" checked> 数値は、数値にする</label>
+      <label>空欄: <select id="tEmpty"><option value="null">null にする</option><option value="empty">空の文字列にする</option><option value="omit">項目を省く</option></select></label>
+      <label><input id="tFence" type="checkbox"> ```json のコードブロックで囲む</label>
+    </div>
+    <div class="trow"><pre id="tPrev"></pre></div>
+    <div class="btns"><button id="tInsert" class="primary">文書に挿入</button><button id="tSave">JSON ファイルに保存…</button><button id="tClose">閉じる</button></div>
+  </div>
+</div>
 <div id="fveil" hidden>
   <div id="fdlg" role="dialog" aria-label="表示フォントの設定">
     <h3>表示フォントの設定</h3>
@@ -889,7 +928,7 @@ document.addEventListener('keydown', e => {
 function applyDocMeta() {
   $('selEnc').value = doc.encoding; $('selNl').value = doc.newline;
   cm.setOption('readOnly', doc.readonly ? true : false);
-  document.querySelectorAll('#fmt [data-f], #fmt select, #fmt [data-e=cut], #fmt [data-e=paste], #fmt [data-e=replace]').forEach(el => { el.disabled = doc.readonly; });
+  document.querySelectorAll('#fmt [data-f], #fmt select, #fmt [data-e=cut], #fmt [data-e=paste], #fmt [data-e=replace], #fToc, #fTable').forEach(el => { el.disabled = doc.readonly; });
   if (typeof finder !== 'undefined' && finder) { $('rrow').hidden = $('rrow').hidden || doc.readonly; }
   updateEditButtons();
 }
@@ -1095,7 +1134,7 @@ document.addEventListener('dragover', e => e.preventDefault());
 
 // ウィンドウへのドロップ。Python（filedrop.py）が、開くと決まった対象（Markdown ファイル1つ／フォルダー1つ）だけを渡してくる
 async function handleDrop(kind, path) {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen()) return;
   if (kind === 'folder') await switchFolder(path); else await openPath(path);
 }
 
@@ -1193,6 +1232,83 @@ async function tocDialog() {
   status(`目次を${r.updated ? '更新' : '挿入'}しました（${r.count} 項目${r.added_ids ? `。HTML の見出し ${r.added_ids} か所に id を追加` : ''}。元に戻すには Ctrl+Z）`, false, 7000);
 }
 
+// ============================================================ 表・データの取り込み（Excel のセル・CSV → Markdown の表・JSON）
+const tableDlgOpen = () => !$('tveil').hidden;
+const TABLE_DEFAULT = { fmt: 'md', delim: 'auto', header: true, align: 'auto', numbers: true, empty: 'null', fence: false };
+let tablePreviewSeq = 0, tableTimer = null, tableJsonName = 'data.json';
+const tableOpts = () => ({ fmt: $('tFmt').value, delim: $('tDelim').value, header: $('tHead').checked, align: $('tAlign').value,
+  numbers: $('tNum').checked, empty: $('tEmpty').value, fence: $('tFence').checked });
+function applyTableOpts(o) {
+  o = { ...TABLE_DEFAULT, ...o };
+  $('tFmt').value = o.fmt; $('tDelim').value = o.delim; $('tHead').checked = o.header; $('tAlign').value = o.align;
+  $('tNum').checked = o.numbers; $('tEmpty').value = o.empty; $('tFence').checked = o.fence;
+}
+function tableInfo(text, bad) { $('tInfo').textContent = text; $('tInfo').classList.toggle('bad', !!bad); }
+async function refreshTablePreview() {
+  const o = tableOpts(), text = $('tSrc').value, seq = ++tablePreviewSeq;
+  $('tMdOpts').hidden = o.fmt !== 'md'; $('tJsonOpts').hidden = o.fmt !== 'json'; $('tSave').hidden = o.fmt !== 'json';
+  const none = msg => { tableInfo(msg, false); $('tPrev').textContent = ''; $('tInsert').disabled = true; $('tSave').disabled = true; };
+  if (!text.trim()) { none('貼り付けるか、CSV ファイルを読み込んでください'); return; }
+  const r = await api.table_convert(text, o, 30);
+  if (seq !== tablePreviewSeq) return;                     // 新しい入力があれば、古い結果は捨てる
+  if (r.error) { none(r.error); tableInfo(r.error, true); return; }
+  tableInfo(`${r.cols} 列 × ${r.rows} 行（データ）`, false);
+  $('tPrev').textContent = r.output; $('tInsert').disabled = false; $('tSave').disabled = false;
+}
+const scheduleTablePreview = () => { clearTimeout(tableTimer); tableTimer = setTimeout(refreshTablePreview, 200); };
+function openTableDlg() {
+  if (doc.readonly) return;
+  applyTableOpts(prefs.table); $('tSrc').value = ''; tableJsonName = 'data.json';
+  $('tveil').hidden = false; refreshTablePreview(); $('tSrc').focus();
+}
+function closeTableDlg() { $('tveil').hidden = true; cm.focus(); }
+
+// 表のブロックを、前後を空行で区切って、カーソルの位置へ入れる
+function insertBlock(text) {
+  const from = cm.getCursor('from'), to = cm.getCursor('to');
+  const before = cm.getRange({ line: from.line, ch: 0 }, from);
+  const after = cm.getRange(to, { line: to.line, ch: cm.getLine(to.line).length });
+  const pre = before.trim() !== '' ? '\n\n' : (from.line > 0 && cm.getLine(from.line - 1).trim() !== '' ? '\n' : '');
+  const post = after.trim() !== '' ? '\n\n' : '\n';
+  cm.replaceSelection(pre + text + post, 'end');
+}
+
+async function tableInsert() {
+  const o = tableOpts(), r = await api.table_convert($('tSrc').value, o, 0);
+  if (r.error) { tableInfo(r.error, true); return; }
+  prefs.table = o; api.set_prefs({ table: o });
+  closeTableDlg();
+  cm.operation(() => o.fmt === 'md' ? insertBlock(r.output) : cm.replaceSelection(r.output, 'end'));
+  status(o.fmt === 'md' ? `表を挿入しました（${r.cols} 列 × ${r.rows} 行）。元に戻すには Ctrl+Z` : `JSON を挿入しました（${r.rows} 件）。元に戻すには Ctrl+Z`, false, 6000);
+}
+async function tableFromFile() {
+  const p = await api.pick_data_file(doc.path ? dirName(doc.path) : folder);
+  if (!p) return;
+  const r = await api.read_table_file(p);
+  if (r.error) { tableInfo(r.error, true); return; }
+  $('tSrc').value = r.text; tableJsonName = r.name.replace(/\.[^.]*$/, '') + '.json';
+  refreshTablePreview();
+}
+async function tableFromClipboard() {
+  const t = await api.clipboard_get();
+  if (!t) { tableInfo('クリップボードに文字がありません（Excel でセルをコピーしてから押してください）', true); return; }
+  $('tSrc').value = t; refreshTablePreview();
+}
+async function tableSaveJson() {
+  const o = { ...tableOpts(), fmt: 'json', fence: false }, r = await api.table_convert($('tSrc').value, o, 0);
+  if (r.error) { tableInfo(r.error, true); return; }
+  const path = await api.pick_json_save(doc.path, tableJsonName);
+  if (!path) return;
+  const w = await api.write_json_file(path, r.output, doc.path);
+  if (w.error) { tableInfo(w.error, true); return; }
+  prefs.table = tableOpts(); api.set_prefs({ table: prefs.table });
+  closeTableDlg();
+  status(`JSON を保存しました（${r.rows} 件）: ${w.path}` + (w.relative ? `　グラフでは "data": { "url": "${w.relative}" } と書くと使えます` : ''), false, 15000);
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && tableDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTableDlg(); }
+}, true);
+
 // ============================================================ 表示の切り替え・幅
 // 一覧・編集・プレビューのどれを出すかは、この4つのモードを1か所で切り替える。一覧が出るのは3画面のときだけ
 const VIEWS = ['triple', 'split', 'edit', 'preview'];
@@ -1253,6 +1369,11 @@ function setupFormatBar() {
     ({ pick: embedPickImage, all: embedAllImages, back: embedBackToFiles })[v]();
   };
   $('fToc').onclick = tocDialog;
+  $('fTable').onclick = openTableDlg;
+  $('tSrc').addEventListener('input', scheduleTablePreview);
+  for (const id of ['tFmt', 'tDelim', 'tHead', 'tAlign', 'tNum', 'tEmpty', 'tFence']) $(id).addEventListener('change', refreshTablePreview);
+  $('tClip').onclick = tableFromClipboard; $('tFile').onclick = tableFromFile;
+  $('tInsert').onclick = tableInsert; $('tSave').onclick = tableSaveJson; $('tClose').onclick = closeTableDlg;
   $('fDiagram').onchange = () => { const v = $('fDiagram').value; $('fDiagram').value = ''; if (!v) return; runFormat(() => v.startsWith('chart:') ? MdFormat.chart(cm, v.slice(6)) : MdFormat.diagram(cm, v)); };
 }
 
@@ -1504,7 +1625,7 @@ window.addEventListener('resize', () => { cm && cm.refresh(); if (!fitMode) retu
 window.addEventListener('focus', () => { syncList(); checkExternal(); });
 
 document.addEventListener('keydown', e => {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen()) return;
   const k = e.key.toLowerCase(), c = e.ctrlKey;
   const inEditor = cm && cm.hasFocus();
   if (e.key === 'Escape') hideCtx();
