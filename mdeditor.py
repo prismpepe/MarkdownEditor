@@ -26,6 +26,7 @@ import cjk_emphasis
 import clipboard
 import dialogs
 import filedrop
+import highlight
 import imgembed
 import tabular
 import toc
@@ -36,7 +37,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.12.3"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.13.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -212,6 +213,9 @@ def make_renderer():
         if tok.info.strip().split(" ")[0].lower() == "mermaid":
             return (f'<pre class="mermaid-src" data-line="{line}"><code>'
                     + escapeHtml(tok.content) + "</code></pre>")
+        colored = highlight.render_fence(tok.content, tok.info, f' data-line="{line}"')   # 言語名つきのコードは、色分けする
+        if colored is not None:
+            return colored
         out = default_fence(tokens, idx, options, env)
         return out.replace("<pre", f'<pre data-line="{line}"', 1)
 

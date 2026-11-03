@@ -14,6 +14,8 @@
 :root {
   --bg: #ffffff; --fg: #1f2328; --muted: #656d76; --side: #f6f8fa;
   --border: #d0d7de; --accent: #0969da; --sel: #ddf4ff; --code: #f3f4f6;
+  /* プレビューのコードの色分け（```言語名）。ダークと印刷でも読める組み合わせ */
+  --t-kw: #0033b3; --t-str: #067d17; --t-com: #5c6370; --t-num: #9c4a00; --t-fn: #6639ba; --t-bi: #0b6e99; --t-var: #a8350f; --t-del: #b3261e; --t-ins: #1a7f37;
   --danger: #cf222e; --head: #0550ae; --ed-size: 15px;
   /* 表示フォント（フォントの設定で変わる。--head-font は設定したときだけ入る） */
   --ui-font: "Yu Gothic UI", "Segoe UI", sans-serif;
@@ -25,6 +27,7 @@
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --side: #161b22;
     --border: #30363d; --accent: #58a6ff; --sel: #1f3a5f; --code: #1c2128;
+    --t-kw: #ff7b72; --t-str: #a5d6ff; --t-com: #8b949e; --t-num: #79c0ff; --t-fn: #d2a8ff; --t-bi: #ffa657; --t-var: #ffb38a; --t-del: #ffa198; --t-ins: #7ee787;
     --danger: #ff7b72; --head: #79c0ff;
   }
 }
@@ -160,6 +163,20 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   font: var(--code-size) var(--code-font); }
 #preview pre { background: var(--code); padding: 12px 16px; border-radius: 6px; overflow-x: auto; }
 #preview pre code { padding: 0; background: none; }
+/* コードの色分け。色だけで区別する（太字・斜体にすると、日本語のコメントで字体が変わって読みにくい） */
+#preview .tok-k, #preview .tok-kc, #preview .tok-kd, #preview .tok-kn, #preview .tok-kp, #preview .tok-kr, #preview .tok-kt,
+#preview .tok-ow, #preview .tok-nt, #preview .tok-gh, #preview .tok-gu { color: var(--t-kw); }
+#preview .tok-s, #preview .tok-sa, #preview .tok-sb, #preview .tok-sc, #preview .tok-dl, #preview .tok-sd, #preview .tok-s1,
+#preview .tok-s2, #preview .tok-sh, #preview .tok-si, #preview .tok-sr, #preview .tok-ss, #preview .tok-sx { color: var(--t-str); }
+#preview .tok-c, #preview .tok-ch, #preview .tok-cm, #preview .tok-cp, #preview .tok-cpf, #preview .tok-c1, #preview .tok-cs,
+#preview .tok-gp { color: var(--t-com); }
+#preview .tok-m, #preview .tok-mb, #preview .tok-mf, #preview .tok-mh, #preview .tok-mi, #preview .tok-mo, #preview .tok-il,
+#preview .tok-se { color: var(--t-num); }
+#preview .tok-nf, #preview .tok-fm, #preview .tok-nc, #preview .tok-nn, #preview .tok-nd, #preview .tok-ne { color: var(--t-fn); }
+#preview .tok-nb, #preview .tok-bp, #preview .tok-na, #preview .tok-no, #preview .tok-nl { color: var(--t-bi); }
+#preview .tok-nv, #preview .tok-vc, #preview .tok-vg, #preview .tok-vi, #preview .tok-vm { color: var(--t-var); }
+#preview .tok-gd { color: var(--t-del); }
+#preview .tok-gi { color: var(--t-ins); }
 #preview blockquote { margin: 0; padding: 0 1em; color: var(--muted); border-left: 4px solid var(--border); }
 #preview table { border-collapse: collapse; margin: 1em 0; }
 #preview th, #preview td { border: 1px solid var(--border); padding: 6px 12px; }
@@ -235,7 +252,8 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 
 @media print {
   :root { --bg: #fff; --fg: #000; --muted: #444; --side: #f2f2f2; --border: #999; --accent: #0645ad;
-    --code: #f2f2f2; --head: #000; --danger: #b00; }
+    --code: #f2f2f2; --head: #000; --danger: #b00;
+    --t-kw: #0033b3; --t-str: #067d17; --t-com: #5c6370; --t-num: #9c4a00; --t-fn: #6639ba; --t-bi: #0b6e99; --t-var: #a8350f; --t-del: #b3261e; --t-ins: #1a7f37; }
   html, body { height: auto !important; overflow: visible !important; display: block !important;
     background: #fff !important; color: #000 !important; }
   #toolbar, #msg, #side, #top, #editorPane, #split, .pane-title, #status, #veil, #pveil, #fveil, #ctx, #find { display: none !important; }
@@ -251,6 +269,13 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   #preview tr, #preview img, #preview .diagram, #preview blockquote, #preview li { break-inside: avoid; }
   #preview thead { display: table-header-group; }
   #preview pre { white-space: pre-wrap; word-break: break-all; overflow: visible; break-inside: avoid; }
+  /* コードの中の記号（✓ など）が PDF で Type3 フォントになるのを防ぐ。
+     ・既定のコード用フォント（Consolas, "Cascadia Mono", monospace）の Cascadia Mono は可変フォントで、PDF では Type3 になる。
+       Consolas に無い字（✓ など）を Cascadia Mono が描くため、印刷のときだけ既定から外す（フォント設定で選んだフォントは、そのまま使う）
+     ・字形が無い記号は、本文と同じく、埋め込める日本語フォントで補う
+     ・font の短縮記法が、絵文字の指定（font-variant-emoji）を戻してしまうので、ここで指定し直す */
+  :root { --code-font: Consolas; }
+  #preview code, #preview pre { font-family: var(--code-font), "Yu Gothic UI", "Segoe UI", "Meiryo", "MS Gothic"; font-variant-emoji: text; }
   #preview .diagram { overflow: visible; }
   #preview .page-break, #preview .pagebreak { break-after: page; height: 0 !important; margin: 0 !important; border: 0 !important; overflow: hidden; }
   #preview .page-break-before { break-before: page; }

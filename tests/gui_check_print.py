@@ -92,6 +92,11 @@ FONT_DOCS = {
     'symbols': "# 記号\n\nボタン 📁 📄 🔍 💾 🔗 と ▦ ① → ✓ ⚠ ★ の記号\n",
     'mermaid_emoji': "```mermaid\nflowchart LR\n  A[🙂 開始] --> B[📄 文書]\n```\n",
     'vega': "# グラフ\n\n```vega-lite\n" + json.dumps(VEGA_SPEC, ensure_ascii=False) + "\n```\n",
+    # 色分けしたコード（日本語のコメント・記号つき）。色は付くが、字体は変えないので、Type3 にならない
+    'code': ("# コード\n\n```bat\n@echo off\nREM バッチのコメント\nset NAME=世界\nif exist \"%~dp0a.txt\" (echo 「%NAME%」) else goto :end\n:end\n```\n\n"
+             "```powershell\n# 日本語コメント → 矢印 ✓ ⚠\nfunction Get-Foo($a) { Write-Host \"値: $a\" }\n```\n\n"
+             "```bash\n#!/bin/bash\n# コメント ★\nNAME=\"あ\"; if [ -f \"$NAME\" ]; then echo \"${NAME}\"; fi\n```\n\n"
+             "```python\ndef f(x: int) -> str:\n    \"\"\"説明\"\"\"\n    return f\"{x}\"  # 末尾コメント\n```\n"),
 }
 
 
@@ -223,7 +228,7 @@ def drive():
     check("ページ範囲は保存されない（次回は「すべて」から始まる）", ("ranges" in saved, "rangeAll" in saved), (False, False))
 
     # 図・グラフの日本語、絵文字・記号は、Type3 フォントにならない（Reader の警告の原因）。図のフォントが日本語を持たない場合（Segoe UI）も同じ
-    for kind in ('mermaid', 'vega', 'symbols', 'mermaid_emoji'):
+    for kind in ('mermaid', 'vega', 'symbols', 'mermaid_emoji', 'code'):
         for fam in ('', 'Segoe UI'):
             js("prefs.fonts = Object.assign({}, prefs.fonts, {diagram: {family: %s}}); applyFonts();" % json.dumps(fam))
             js("cm.setValue(%s)" % json.dumps(FONT_DOCS[kind]))
@@ -233,6 +238,22 @@ def drive():
             check("%s の日本語は Type3 フォントにならない（図のフォント: %s）" % (kind, fam or '既定'),
                   type3_count(open(out, 'rb').read()) if r['ok'] else r, 0)
     js("prefs.fonts = Object.assign({}, prefs.fonts, {diagram: {family: ''}}); applyFonts();")
+
+    # 色分けしたコードは、PDF にも色つきの文字で出る（明るい配色。ダークモードでも、印刷は明るい背景用）
+    js("cm.setValue(%s)" % json.dumps(FONT_DOCS['code']))
+    time.sleep(6)
+    out = os.path.join(tmp, "code_colors.pdf")
+    r = api.print_save_pdf({**BASE, 'uri': src}, '', out)
+    data = open(out, 'rb').read()
+    streams = [data]
+    for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', data, re.S):
+        try:
+            streams.append(zlib.decompress(m.group(1)))
+        except Exception:
+            pass
+    fills = set(re.findall(rb'([\d.]+ [\d.]+ [\d.]+) rg', b'\n'.join(streams)))
+    check("色分けしたコードは、PDF に色つきの文字で出る（文字色が3種類以上）", (r['ok'], len(fills) >= 3), (True, True))
+    print("    PDF の文字色の種類:", len(fills), flush=True)
 
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False

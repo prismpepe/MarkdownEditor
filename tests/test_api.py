@@ -23,7 +23,10 @@ def test_見出しや段落に元の行番号が付く(api):
 def test_コードブロックにも行番号が付く(api):
     html = api.render("text\n\n```python\nprint(1)\n```\n")
     assert re.search(r'<pre[^>]*data-line="2"', html)
-    assert "print(1)" in html
+    assert 'class="tok-' in html                                         # 言語名つきは色分けされ、文字が <span> に分かれる
+    assert re.sub(r"<[^>]+>", "", html).count("print(1)") == 1           # タグを除けば、コードは元のまま
+    plain = api.render("text\n\n```\nprint(1)\n```\n")
+    assert re.search(r'<pre[^>]*data-line="2"', plain) and "print(1)" in plain    # 言語名なしは、従来どおり
 
 
 def test_mermaidのブロックは図の元として残る(api):
