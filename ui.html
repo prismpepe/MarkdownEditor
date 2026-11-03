@@ -83,12 +83,14 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #previewPane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #pscroll { flex: 1; overflow: auto; }
 #preview { padding: 16px 24px 64px; }
-#fmt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; padding: 5px 8px;
+#fmt { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 14px; padding: 5px 8px 6px;
   background: var(--bg); border-bottom: 1px solid var(--border); }
 #fmt button { min-width: 30px; padding: 3px 6px; white-space: nowrap; }
 #fmt select { padding: 3px 4px; }
-#fmt .fgroup { display: inline-flex; align-items: center; gap: 4px; padding-right: 8px; margin-right: 4px; border-right: 1px solid var(--border); }
-#fmt .fgroup:last-child { border-right: 0; }
+/* ボタンは、用途ごとのグループにまとめ、グループの名前を上に小さく出す。折り返すときは、グループ単位（途中では割れない） */
+#fmt .fgroup { display: flex; flex-direction: column; gap: 3px; flex: none; }
+#fmt .glabel { font-size: 10px; line-height: 1; color: var(--muted); padding-left: 2px; white-space: nowrap; user-select: none; }
+#fmt .gbtns { display: flex; align-items: center; flex-wrap: nowrap; gap: 4px; }
 #find { padding: 6px 8px; background: var(--side); border-bottom: 1px solid var(--border); }
 #find .frow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 #find .frow + .frow { margin-top: 6px; }
@@ -301,56 +303,67 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <div id="panes">
       <div id="editorPane">
         <div class="pane-title">編集</div>
-        <div id="fmt" role="toolbar" aria-label="書式">
-          <span class="fgroup">
-            <button data-e="undo" title="元に戻す (Ctrl+Z)">↶</button>
-            <button data-e="redo" title="やり直し (Ctrl+Y)">↷</button>
-            <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
-            <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
-            <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
-            <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
-            <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
+        <div id="fmt" role="toolbar" aria-label="編集ボタン">
+          <span class="fgroup" role="group" aria-label="編集">
+            <span class="glabel">編集</span>
+            <span class="gbtns">
+              <button data-e="undo" title="元に戻す (Ctrl+Z)">↶</button>
+              <button data-e="redo" title="やり直し (Ctrl+Y)">↷</button>
+              <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
+              <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
+              <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
+              <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
+              <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
+            </span>
           </span>
-          <span class="fgroup">
-            <select id="fHead" title="見出しの段階を選ぶ（同じ段階をもう一度選ぶと本文に戻る）">
-              <option value="">見出し</option>
-              <option value="1">見出し1（大）</option><option value="2">見出し2</option>
-              <option value="3">見出し3</option><option value="4">見出し4</option>
-              <option value="5">見出し5</option><option value="6">見出し6（小）</option>
-              <option value="0">本文に戻す</option>
-            </select>
+          <span class="fgroup" role="group" aria-label="書式">
+            <span class="glabel">書式</span>
+            <span class="gbtns">
+              <select id="fHead" title="見出しの段階を選ぶ（同じ段階をもう一度選ぶと本文に戻る）">
+                <option value="">見出し</option>
+                <option value="1">見出し1（大）</option><option value="2">見出し2</option>
+                <option value="3">見出し3</option><option value="4">見出し4</option>
+                <option value="5">見出し5</option><option value="6">見出し6（小）</option>
+                <option value="0">本文に戻す</option>
+              </select>
+              <button data-f="bold" title="太字 (Ctrl+B)"><b>B</b></button>
+              <button data-f="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
+              <button data-f="strike" title="取り消し線"><s>S</s></button>
+              <button data-f="code" title="コード (Ctrl+E)">&lt;/&gt;</button>
+              <button data-f="link" title="リンク (Ctrl+K)">🔗</button>
+              <button data-f="rule" title="区切り線">―</button>
+            </span>
           </span>
-          <span class="fgroup">
-            <button data-f="bold" title="太字 (Ctrl+B)"><b>B</b></button>
-            <button data-f="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
-            <button data-f="strike" title="取り消し線"><s>S</s></button>
-            <button data-f="code" title="コード (Ctrl+E)">&lt;/&gt;</button>
+          <span class="fgroup" role="group" aria-label="リスト・ブロック">
+            <span class="glabel">リスト・ブロック</span>
+            <span class="gbtns">
+              <button data-f="ul" title="箇条書き">• ≡</button>
+              <button data-f="ol" title="番号付きリスト">1.≡</button>
+              <button data-f="task" title="チェックリスト">☑</button>
+              <button data-f="quote" title="引用">❝</button>
+              <button data-f="codeblock" title="コードブロック">{ }</button>
+            </span>
           </span>
-          <span class="fgroup">
-            <button data-f="ul" title="箇条書き">• ≡</button>
-            <button data-f="ol" title="番号付きリスト">1.≡</button>
-            <button data-f="task" title="チェックリスト">☑</button>
-            <button data-f="quote" title="引用">❝</button>
+          <span class="fgroup" role="group" aria-label="画像・表・データ">
+            <span class="glabel">画像・表・データ</span>
+            <span class="gbtns">
+              <button data-f="image" title="画像 (![説明](パス) の書き方を、カーソルの位置に入れる)">🖼 画像</button>
+              <select id="fImage" title="画像を Base64 にして文書へ埋め込む（画像ファイルを別に添えずに、Markdown ファイル1つで配布できる）">
+                <option value="">画像の埋め込み…</option>
+                <option value="pick">画像ファイルを選んで挿入</option>
+                <option value="all">文書内の画像をすべて Base64 にする</option>
+                <option value="back">Base64 の画像をファイルへ戻す</option>
+              </select>
+              <button data-f="table" title="表 (空の表のひな形を、カーソルの位置に入れる)">▦ 表</button>
+              <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
+            </span>
           </span>
-          <span class="fgroup">
-            <button data-f="link" title="リンク (Ctrl+K)">🔗</button>
-            <button data-f="image" title="画像">🖼</button>
-            <button data-f="table" title="表">▦</button>
-            <button data-f="codeblock" title="コードブロック">{ }</button>
-            <button data-f="rule" title="区切り線">―</button>
-          </span>
-          <span class="fgroup">
-            <select id="fDiagram" title="Mermaid の図・Vega-Lite のグラフを、ひな形から挿入する"><option value="">図を挿入…</option></select>
-          </span>
-          <span class="fgroup">
-            <select id="fImage" title="画像を Base64 にして文書へ埋め込む（画像ファイルを別に添えずに、Markdown ファイル1つで配布できる）">
-              <option value="">画像の埋め込み…</option>
-              <option value="pick">画像ファイルを選んで挿入</option>
-              <option value="all">文書内の画像をすべて Base64 にする</option>
-              <option value="back">Base64 の画像をファイルへ戻す</option>
-            </select>
-            <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
-            <button id="fTable" title="Excel のセルや CSV ファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
+          <span class="fgroup" role="group" aria-label="目次・チャート">
+            <span class="glabel">目次・チャート</span>
+            <span class="gbtns">
+              <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
+              <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
+            </span>
           </span>
         </div>
         <div id="find" hidden>

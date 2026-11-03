@@ -94,6 +94,23 @@ def finish():
     shown = js("[...document.querySelectorAll('[hidden]')].filter(e => getComputedStyle(e).display !== 'none').map(e => e.id || e.className || e.tagName)")
     check("hidden 属性の要素が、すべて隠れている", shown, [])
 
+    # 編集ボタンの列: 5つのグループ。見出しの名前と並び、引用がコードブロックの隣、折り返しはグループ単位
+    check("編集ボタンのグループの名前と並び", js("[...document.querySelectorAll('#fmt .fgroup .glabel')].map(e => e.textContent)"),
+          ['編集', '書式', 'リスト・ブロック', '画像・表・データ', '目次・チャート'])
+    check("引用は、リスト・ブロックのグループで、コードブロックの隣", js("[...document.querySelectorAll('#fmt .fgroup')[2].querySelectorAll('button')].map(b => b.dataset.f)"),
+          ['ul', 'ol', 'task', 'quote', 'codeblock'])
+    check("チャートの選択欄の名前", js("document.querySelector('#fDiagram option').textContent"), 'チャートを挿入…')
+    for width in (1400, 900, 600, 420):
+        w.resize(width, 700)
+        time.sleep(0.8)
+        split = js("""[...document.querySelectorAll('#fmt .fgroup')].filter(g => {
+            const tops = new Set([...g.querySelectorAll('.gbtns > *')].map(e => Math.round(e.getBoundingClientRect().top)));
+            return tops.size > 1; }).map(g => g.querySelector('.glabel').textContent)""")
+        check("幅 %d: どのグループも、途中で折り返さない" % width, split, [])
+        clipped = js("""(() => { const f = document.getElementById('fmt').getBoundingClientRect();
+            return [...document.querySelectorAll('#fmt .fgroup')].filter(g => g.getBoundingClientRect().right > f.right + 1 && g.getBoundingClientRect().width <= f.width).length; })()""")
+        check("幅 %d: グループが、列の右端からはみ出さない" % width, clipped, 0)
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
     api._closing = True
