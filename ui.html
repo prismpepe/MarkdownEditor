@@ -304,18 +304,6 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
       <div id="editorPane">
         <div class="pane-title">編集</div>
         <div id="fmt" role="toolbar" aria-label="編集ボタン">
-          <span class="fgroup" role="group" aria-label="編集">
-            <span class="glabel">編集</span>
-            <span class="gbtns">
-              <button data-e="undo" title="元に戻す (Ctrl+Z)">↶</button>
-              <button data-e="redo" title="やり直し (Ctrl+Y)">↷</button>
-              <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
-              <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
-              <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
-              <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
-              <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
-            </span>
-          </span>
           <span class="fgroup" role="group" aria-label="書式">
             <span class="glabel">書式</span>
             <span class="gbtns">
@@ -363,6 +351,18 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
             <span class="gbtns">
               <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
               <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
+            </span>
+          </span>
+          <span class="fgroup" role="group" aria-label="編集">
+            <span class="glabel">編集</span>
+            <span class="gbtns">
+              <button data-e="undo" title="元に戻す (Ctrl+Z)">↶</button>
+              <button data-e="redo" title="やり直し (Ctrl+Y)">↷</button>
+              <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
+              <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
+              <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
+              <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
+              <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
             </span>
           </span>
         </div>

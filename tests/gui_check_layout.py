@@ -96,10 +96,12 @@ def finish():
 
     # 編集ボタンの列: 5つのグループ。見出しの名前と並び、引用がコードブロックの隣、折り返しはグループ単位
     check("編集ボタンのグループの名前と並び", js("[...document.querySelectorAll('#fmt .fgroup .glabel')].map(e => e.textContent)"),
-          ['編集', '書式', 'リスト・ブロック', '画像・表・データ', '目次・チャート'])
-    check("引用は、リスト・ブロックのグループで、コードブロックの隣", js("[...document.querySelectorAll('#fmt .fgroup')[2].querySelectorAll('button')].map(b => b.dataset.f)"),
+          ['書式', 'リスト・ブロック', '画像・表・データ', '目次・チャート', '編集'])
+    check("引用は、リスト・ブロックのグループで、コードブロックの隣", js("[...document.querySelectorAll('#fmt .fgroup')[1].querySelectorAll('button')].map(b => b.dataset.f)"),
           ['ul', 'ol', 'task', 'quote', 'codeblock'])
     check("チャートの選択欄の名前", js("document.querySelector('#fDiagram option').textContent"), 'チャートを挿入…')
+    check("既定の3画面（幅1400）では、3段（2+1+2グループ）に折り返す", (w.resize(1400, 700), time.sleep(0.8), js("""(() => { const tops = [...document.querySelectorAll('#fmt .fgroup')].map(g => Math.round(g.getBoundingClientRect().top));
+        const u = [...new Set(tops)].sort((a, b) => a - b); return u.map(t => tops.filter(x => x === t).length).join('+'); })()"""))[2], '2+1+2')
     for width in (1400, 900, 600, 420):
         w.resize(width, 700)
         time.sleep(0.8)
