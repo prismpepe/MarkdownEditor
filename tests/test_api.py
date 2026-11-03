@@ -35,7 +35,8 @@ def test_mermaidのブロックは図の元として残る(api):
 def test_埋め込みHTMLの危険な要素は落ちる(api):
     html = api.render('<table><tr><td onclick="x()">a</td></tr></table>\n\n'
                       '<script>alert(1)</script>\n\n<a href="javascript:x()">b</a>\n')
-    assert "<table>" in html and "<td>a</td>" in html
+    assert "<table" in html and "<td>a</td>" in html
+    assert '<table data-line="0">' in html and '<p data-line="4">' in html   # 行番号の目印（スクロールの同期用）が付く
     for bad in ("<script", "onclick", "javascript:"):
         assert bad not in html
 

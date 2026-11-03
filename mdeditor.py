@@ -36,7 +36,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.12.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.12.1"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -56,6 +56,24 @@ OPEN_EXTENSIONS = (
 # ブロック要素のうち、プレビューと編集の位置合わせに使うもの
 LINE_TOKENS = {"paragraph_open", "heading_open", "bullet_list_open", "ordered_list_open",
                "list_item_open", "blockquote_open", "table_open", "tr_open", "hr"}
+
+# HTML のブロック（`<table>…` など）は、中の行を、タグごとに目印にする。目印が無いと、編集欄をスクロールしても、
+# プレビューが動かない（HTML の表が複数続くと、とくに目立つ）。Markdown の表の行（tr_open）と同じ扱いにする。
+HTML_ANCHOR_TAGS = ("table|tr|p|div|h[1-6]|ul|ol|li|blockquote|pre|hr|details|summary|section|figure|dl|dt|dd")
+HTML_ANCHOR = re.compile(r"<(%s)(?=[\s>/])((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>" % HTML_ANCHOR_TAGS, re.I)
+
+
+def anchor_html_lines(tok):
+    """html_block の中の、行に対応するタグへ、元の文書の行番号（data-line）を付ける。"""
+    first = tok.map[0]
+
+    def add(m):
+        if "data-line" in m.group(2).lower():
+            return m.group(0)
+        line = first + tok.content.count("\n", 0, m.start())
+        return '<%s data-line="%d"%s>' % (m.group(1), line, m.group(2))
+
+    tok.content = HTML_ANCHOR.sub(add, tok.content)
 
 
 def resource_path(name):
@@ -162,6 +180,8 @@ def make_renderer():
         for tok in state.tokens:
             if tok.map and tok.type in LINE_TOKENS:
                 tok.attrSet("data-line", str(tok.map[0]))
+            elif tok.map and tok.type == "html_block":
+                anchor_html_lines(tok)
 
     md.core.ruler.push("source_lines", add_lines)
 
