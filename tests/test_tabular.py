@@ -254,3 +254,81 @@ def test_JSONの大きな表でも現実的な時間():
     t0 = time.time()
     r = convert(text, fmt="md")
     assert time.time() - t0 < 5 and r["rows"] == 50000
+
+
+# ---- HTML の表 -----------------------------------------------------------------
+def cells_of(html_text):
+    return [re.sub(r"<[^>]+>", "", c) for c in re.findall(r"<t[hd](?:\s[^>]*)?>(.*?)</t[hd]>", html_text, re.S)]
+
+
+def test_HTMLの表の形():
+    out = convert("月,売上\n一月,3\n二月,5\n", fmt="html")["output"]
+    assert out.split("\n") == [
+        "<table>", "  <thead>", '    <tr><th>月</th><th align="right">売上</th></tr>', "  </thead>", "  <tbody>",
+        '    <tr><td>一月</td><td align="right">3</td></tr>', '    <tr><td>二月</td><td align="right">5</td></tr>',
+        "  </tbody>", "</table>"]
+
+
+def test_HTMLの表は_プレビューで表になる_配置も残る():
+    out = convert(EXCEL, fmt="html")["output"]
+    html = render(out)
+    assert html.count("<table") == 1 and html.count("<thead>") == 1
+    assert cells_of(html) == ["月", "売上", "備考", "一月", "1,234", "好調", "二月", "987", ""]
+    assert 'align="right"' in html
+
+
+def test_HTMLの表に_空行は入らない_Markdownの中で壊れない():
+    out = convert("a,b\n1,\n,2\n\n3,4\n", fmt="html")["output"]
+    assert "\n\n" not in out
+    md_doc = "前の段落\n\n" + out + "\n\n後の段落 **太字**\n"
+    html = render(md_doc)
+    assert html.count("<table") == 1 and "<strong>太字</strong>" in html
+
+
+def test_HTMLの特殊文字と改行():
+    out = convert('a,b\n"x<y & z","l1\nl2"\n', fmt="html")["output"]
+    assert "<td>x&lt;y &amp; z</td>" in out and "<td>l1<br>l2</td>" in out
+    html = render(out)
+    assert "<script" not in html and cells_of(html)[2] == "x<y & z" or "x&lt;y" in html
+
+
+def test_HTMLの表に_タグや属性を差し込めない():
+    out = convert('a\n"<script>alert(1)</script>"\n"<img src=x onerror=alert(1)>"\n', fmt="html")["output"]
+    assert "<script>" not in out and "<img" not in out
+    html = render(out)
+    assert "<script" not in html and "<img" not in html and "onerror" not in html.replace("&lt;img src=x onerror=alert(1)&gt;", "")
+
+
+def test_HTMLの表_罫線の指定():
+    assert convert("a\n1\n", fmt="html", border=True)["output"].split("\n")[0] == '<table border="1">'
+    assert convert("a\n1\n", fmt="html", border=False)["output"].split("\n")[0] == "<table>"
+    assert 'border="1"' in render(convert("a\n1\n", fmt="html", border=True)["output"])
+
+
+def test_HTMLの表_配置の指定():
+    for align, attr in (("left", ' align="left"'), ("center", ' align="center"'), ("right", ' align="right"'), ("none", "")):
+        out = convert("a,b\n1,x\n", fmt="html", align=align)["output"]
+        assert out.count("<th%s>" % attr) == 2 and out.count("<td%s>" % attr) == 2, align
+
+
+def test_HTMLの表_見出しを使わないときは_theadを付けない():
+    out = convert("x,y\n1,2\n", fmt="html", header=False)["output"]
+    assert "<thead>" not in out and "<th" not in out
+    assert out.count("<tr>") == 2
+
+
+def test_HTMLの表_見出しだけなら_tbodyは付けない():
+    out = convert("a,b\n", fmt="html")["output"]
+    assert "<thead>" in out and "<tbody>" not in out and out.endswith("</table>")
+
+
+def test_JSONから_HTMLの表にできる():
+    out = convert(JSON_DATA, fmt="html")["output"]
+    assert cells_of(out) == ["月", "売上", "備考", "一月", "1234", "好調", "二月", "987", ""]
+
+
+def test_HTMLの表と_Markdownの表は_プレビューで同じ内容():
+    for text in (EXCEL, "a,b\n1,2\n", "x|y,z\n<1>,2\n", 'a,b\n"l1\nl2",&\n'):
+        md_html = render(convert(text, fmt="md")["output"])
+        html_html = render(convert(text, fmt="html")["output"])
+        assert cells_of(md_html) == cells_of(html_html), text

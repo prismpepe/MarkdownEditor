@@ -9,6 +9,9 @@ Markdown ファイル1つで配布できるようにするため、文書が参�
 - コード（コードブロック・インラインコード）の中の記法は対象にしない。
 - 対象は、`![説明](パス)`、`![説明][ラベル]` が使う定義 `[ラベル]: パス`、`<img src="パス">`。
   画像に使われていない定義（PDF へのリンクなど）は変えない。
+- 「パスで参照する」書き方（`![説明](images/a.png)`）も作れる（`path_reference`）。文書を保存してあれば、
+  文書のフォルダーからの相対パス（別のドライブなら絶対パス）、保存していなければ `file:///` の絶対パス。
+  パスの空白・括弧などは `%20` のように符号化する（日本語はそのまま）。SVG も参照できる（プレビューが開いて表示する）。
 - ファイルへ戻すときは、文書の隣の `images/` フォルダーへ `文書名_001.png` のように書き出す。
   同じ内容のファイルがすでにあれば、それを使い、別の内容のファイルを上書きしない。
 """
@@ -194,6 +197,38 @@ def insert_new(text, path, alt=None):
     alt = alt if alt is not None else os.path.splitext(os.path.basename(path))[0]
     alt = re.sub(r"([\[\]\\])", r"\\\1", alt)
     return {"ref": "![%s][%s]" % (alt, label), "definition": "[%s]: %s" % (label, uri), "label": label, "bytes": size}
+
+
+PATH_UNSAFE = set(" ()<>%[]\"#?\\")
+
+
+def _encode_path(path):
+    """Markdown の書き方に入れるパスの、空白・括弧・% など、書き方を壊す文字だけを %XX にする（日本語はそのまま）。"""
+    return "".join("".join("%%%02X" % b for b in c.encode("utf-8")) if c in PATH_UNSAFE else c for c in path)
+
+
+def path_reference(image_path, doc_path=None, alt=None):
+    """画像ファイルを、パスで参照する Markdown の書き方にする。
+    戻り値: {"markdown", "path", "relative": 相対パスか, "bytes"} か {"error"}。"""
+    ext = os.path.splitext(image_path)[1].lower()
+    if ext not in IMAGE_TYPES and ext != ".svg":
+        return {"error": "対応していない画像の形式です（png / jpg / gif / webp / bmp / svg）"}
+    if not os.path.isfile(image_path):
+        return {"error": "ファイルが見つかりません"}
+    relative = False
+    path = None
+    if doc_path:
+        try:
+            rel = os.path.relpath(image_path, os.path.dirname(os.path.abspath(doc_path)))
+            path, relative = rel.replace(os.sep, "/"), True
+        except ValueError:                                    # 別のドライブ: 相対パスにできない
+            path = None
+    if path is None:
+        path = "file:///" + os.path.abspath(image_path).replace(os.sep, "/")
+    alt = alt if alt is not None else os.path.splitext(os.path.basename(image_path))[0]
+    alt = re.sub(r"([\[\]\\])", r"\\\1", alt)
+    return {"markdown": "![%s](%s)" % (alt, _encode_path(path)), "path": path, "relative": relative,
+            "bytes": os.path.getsize(image_path)}
 
 
 def _safe_stem(name):

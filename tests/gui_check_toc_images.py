@@ -78,7 +78,7 @@ def drive():
     wait("doc.path && cm.getValue().length > 0")
     time.sleep(1)
     check("文書が開いている", text(), DOC)
-    check("ツールバーに「画像の埋め込み」と「目次」がある", js("[!!document.getElementById('fImage'), !!document.getElementById('fToc')]"), [True, True])
+    check("ツールバーに「画像の挿入」と「目次」がある", js("[!!document.getElementById('fImage'), !!document.getElementById('fToc')]"), [True, True])
 
     # ---- 文書内の画像をすべて Base64 にする
     msg = run("embedAllImages()")
@@ -111,6 +111,35 @@ def drive():
     wait("cm.getValue().includes('[image1]: data:')", 10)
     t = text()
     check("カーソル位置に参照が入り、文末に定義が入る", (t.startswith('![picked][image1]# 題名'), t.rstrip().split('\n')[-1].startswith('[image1]: data:image/png;base64,')), (True, True))
+    js("cm.setValue(%s)" % json.dumps(DOC))
+
+    # ---- 画像を、パスで参照する書き方で挿入する（選択欄から）
+    check("画像の挿入の選択肢", js("[...document.getElementById('fImage').options].map(o => o.textContent)"),
+          ['画像の挿入…', '画像を選んで挿入（パスで参照）', '画像を選んで挿入（Base64 で埋め込み）', '文書内の画像をすべて Base64 に変換', 'Base64 の画像をファイルに戻す'])
+
+    def pick(option):
+        js("document.getElementById('fImage').value = %s; document.getElementById('fImage').dispatchEvent(new Event('change'))" % json.dumps(option))
+
+    js("api.pick_image = (i, svg) => { window._svg = svg; return Promise.resolve(%s); }" % json.dumps(os.path.join(tmp, 'images', 'a.png')))
+    js("cm.setValue(%s); cm.setCursor({line: 0, ch: 0})" % json.dumps("本文\n"))
+    pick('ref')
+    wait("cm.getValue().includes('![a](images/a.png)')", 10)
+    check("パスで参照する書き方が、カーソルの位置に入る（相対パス）", js("cm.getValue()"), "![a](images/a.png)本文\n")
+    check("パスで参照するときは、SVG も選べる", js("window._svg"), True)
+    time.sleep(1.5)
+    check("プレビューに画像が出る", js("!!document.querySelector('#preview img') && document.querySelector('#preview img').src.startsWith('data:image/png')"), True)
+    js("cm.setValue('文字を選ぶ'); cm.setSelection({line: 0, ch: 0}, {line: 0, ch: 3})")
+    pick('ref')
+    wait("cm.getValue().includes('![文字を](')", 10)
+    check("文字を選んでいれば、その文字が、画像の説明になる", js("cm.getValue()"), "![文字を](images/a.png)選ぶ")
+    js("(() => { window._path = doc.path; doc.path = null; })()")
+    js("cm.setValue(''); cm.setCursor({line: 0, ch: 0})")
+    pick('ref')
+    wait("cm.getValue().length > 0", 10)
+    t = js("cm.getValue()")
+    check("文書を保存していないときは、絶対パス（file:///）で入る", (t.startswith('![a](file:///'), t.endswith('/images/a.png)')), (True, True))
+    js("doc.path = window._path")
+    js("cm.undo()")
     js("cm.setValue(%s)" % json.dumps(DOC))
 
     # ---- 目次

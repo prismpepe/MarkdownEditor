@@ -93,10 +93,10 @@ def clean_table(value):
     """表・データの取り込みの指定（出力の形式、区切り、見出し、配置、数値、空欄、囲み）。正しい項目だけを残す。"""
     if not isinstance(value, dict):
         return None
-    choices = {"fmt": ("md", "json"), "source": ("auto", "table", "json"), "delim": ("auto", "tab", "comma", "semicolon"),
+    choices = {"fmt": ("md", "html", "json"), "source": ("auto", "table", "json"), "delim": ("auto", "tab", "comma", "semicolon"),
                "align": ("auto", "left", "center", "right", "none"), "empty": ("null", "empty", "omit")}
     out = {k: value[k] for k, ok in choices.items() if value.get(k) in ok}
-    for k in ("header", "numbers", "fence"):
+    for k in ("header", "numbers", "fence", "border"):
         if isinstance(value.get(k), bool):
             out[k] = value[k]
     return out or None

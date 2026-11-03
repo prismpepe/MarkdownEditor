@@ -177,6 +177,32 @@ def drive():
         msg = js("document.getElementById('status').textContent") if js("!!document.getElementById('status')") else ''
         check("保存の知らせに、data.url に書く相対パスが出る", 'data/売上.json' in js("document.body.innerText"), True)
 
+        # ---- HTML の表
+        js("document.getElementById('fTable').click()")
+        set_src(TSV)
+        set_ctl('tFmt', 'html')
+        check("HTML の表のときの項目（配置と罫線は出る。JSON の項目と保存は出ない）", (visible('tMdOpts'), visible('tBorderL'), visible('tJsonOpts'), visible('tSave')), (True, True, False, False))
+        check("HTML の表のプレビュー", preview().split("\n")[:2], ["<table>", "  <thead>"])
+        set_ctl('tBorder', True)
+        check("罫線を付ける指定", preview().split("\n")[0], '<table border="1">')
+        set_ctl('tBorder', False)
+        js("document.getElementById('tClose').click(); cm.setValue(%s); cm.setCursor({line: 0, ch: 5})" % json.dumps("段落です。\n"))
+        js("document.getElementById('fTable').click()")
+        set_ctl('tFmt', 'html')
+        set_src(TSV)
+        js("document.getElementById('tInsert').click()")
+        wait("document.getElementById('tveil').hidden")
+        t = js("cm.getValue()")
+        check("段落の後ろに、空行を挟んで HTML の表が入る", t.startswith("段落です。\n\n<table>\n  <thead>\n"), True)
+        check("HTML の表の中に、空行は入らない", "\n\n" not in t[t.index("<table>"):t.index("</table>")], True)
+        time.sleep(1.5)
+        check("プレビューに表が出る（数値の列は右寄せ）", js("[document.querySelectorAll('#preview table').length, document.querySelectorAll('#preview td[align=\"right\"]').length]"), [1, 2])
+        js("cm.undo()")
+        check("元に戻す（Ctrl+Z）1回で、挿入前に戻る", js("cm.getValue()"), "段落です。\n")
+        js("document.getElementById('fTable').click()")
+        check("挿入したときの設定（HTML の表）が覚えられている", js("document.getElementById('tFmt').value"), 'html')
+        js("document.getElementById('tClose').click()")
+
         # ---- JSON から表を作る（逆向き）
         js("document.getElementById('fTable').click()")
         set_ctl('tFmt', 'md')

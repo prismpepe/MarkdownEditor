@@ -114,3 +114,22 @@ def test_入力の形式も覚える():
     import uiprefs
     assert uiprefs.clean_prefs({"table": {"source": "json"}}) == {"table": {"source": "json"}}
     assert uiprefs.clean_prefs({"table": {"source": "xml"}}) == {}
+
+
+def test_HTMLの表と罫線の指定も覚える():
+    import uiprefs
+    assert uiprefs.clean_prefs({"table": {"fmt": "html", "border": True}}) == {"table": {"fmt": "html", "border": True}}
+    assert uiprefs.clean_prefs({"table": {"fmt": "xml", "border": "yes"}}) == {}
+
+
+def test_HTMLの表に変換できる(api):
+    out = api.table_convert("a,b\n1,2\n", {"fmt": "html", "border": True})
+    assert out["output"].startswith('<table border="1">') and out["source"] == "table"
+
+
+def test_画像のパス参照を返す(api, tmp_path):
+    (tmp_path / "images").mkdir()
+    (tmp_path / "images" / "a.png").write_bytes(b"x")
+    r = api.image_path_reference(str(tmp_path / "images" / "a.png"), str(tmp_path / "d.md"))
+    assert r["markdown"] == "![a](images/a.png)" and r["relative"] is True
+    assert "error" in api.image_path_reference(str(tmp_path / "none.png"), str(tmp_path / "d.md"))

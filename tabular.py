@@ -5,6 +5,9 @@
 同じデータを、次のどちらにも変換する。
 
 - Markdown の表: `| 見出し | … |` と区切り行。数値だけの列は、右寄せ（`---:`）にする。
+- HTML の表: `<table>`（見出しがあれば `<thead>`、データは `<tbody>`）。配置は `align` 属性（数値だけの列は右寄せ）、
+  罫線は `border="1"` を付けるか選べる。セルの `&` `<` `>` は文字として出し、改行は `<br>`。
+  出力の中に空行は入れない（Markdown の中の HTML は、空行で終わるため）。見出しを使わないときは `<thead>` を付けない。
 - JSON: Vega-Lite の `data.values` やデータファイル（`data.url`）に使える、オブジェクトの配列。
   `[{"月": "一月", "売上": 3}, …]`。1行目を、キー（列の名前）として使う。
 
@@ -26,6 +29,7 @@ JSON から表を作るとき（Excel・CSV から JSON への変換の、逆向
   （JSON にしたときに数値にしたため）。
 """
 import csv
+import html
 import io
 import json
 import re
@@ -180,6 +184,35 @@ def to_markdown(rows, header=True, align="auto"):
     return "\n".join(out)
 
 
+def to_html(rows, header=True, align="auto", border=False):
+    """HTML の表。見出しを使わないとき（header=False）は、`<thead>` を付けず、全部の行を `<tbody>` に入れる。"""
+    body = body_of(rows, header)
+    width = len(rows[0]) if rows else 0
+
+    def mark(i):
+        if align == "auto":
+            cells = [r[i] for r in body if r[i]]
+            return "right" if cells and all(PERCENT_OR_NUMBER.match(c) for c in cells) else None
+        return None if align == "none" else align
+
+    marks = [mark(i) for i in range(width)]
+
+    def cell(tag, i, text):
+        attr = ' align="%s"' % marks[i] if marks[i] else ""
+        return "<%s%s>%s</%s>" % (tag, attr, html.escape(text, quote=False).replace("\n", "<br>"), tag)
+
+    out = ['<table border="1">' if border else "<table>"]
+    if header:
+        names = names_of(rows, True)
+        out += ["  <thead>", "    <tr>" + "".join(cell("th", i, n) for i, n in enumerate(names)) + "</tr>", "  </thead>"]
+    if body:
+        out.append("  <tbody>")
+        out += ["    <tr>" + "".join(cell("td", i, c) for i, c in enumerate(r)) + "</tr>" for r in body]
+        out.append("  </tbody>")
+    out.append("</table>")
+    return "\n".join(out)
+
+
 def to_json(rows, header=True, numbers=True, empty="null"):
     names = names_of(rows, header)
     objects = []
@@ -199,10 +232,10 @@ def to_json(rows, header=True, numbers=True, empty="null"):
     return "[\n" + ",\n".join("  " + json.dumps(o, ensure_ascii=False) for o in objects) + "\n]"
 
 
-def convert(text, fmt="md", delimiter="auto", header=True, align="auto", numbers=True, empty="null", fence=False, limit=0, source="auto"):
+def convert(text, fmt="md", delimiter="auto", header=True, align="auto", numbers=True, empty="null", fence=False, limit=0, source="auto", border=False):
     """変換する。戻り値: {"output","rows","cols","lines","source"} か {"error"}。source は、読み取った形（"table" か "json"）。
     limit > 0 なら、出力の最初の limit 行だけを返す（プレビュー用。変換そのものは全部行う）。"""
-    if fmt not in ("md", "json"):
+    if fmt not in ("md", "html", "json"):
         return {"error": "出力の形式が正しくありません"}
     if align != "auto" and align not in ALIGN_MARK:
         return {"error": "列の配置が正しくありません"}
@@ -221,6 +254,8 @@ def convert(text, fmt="md", delimiter="auto", header=True, align="auto", numbers
         header = data["header"]                      # オブジェクトの配列は、キーが列の名前（「1行目を、列の名前にする」は効かない）
     if fmt == "md":
         out = to_markdown(rows, header, align)
+    elif fmt == "html":
+        out = to_html(rows, header, align, bool(border))
     elif data["objects"] is not None:                # JSON を JSON に直すときは、元の値のまま、整えて出す
         out = "[\n" + ",\n".join("  " + json.dumps(o, ensure_ascii=False) for o in data["objects"]) + "\n]"
     else:

@@ -179,3 +179,71 @@ def test_大きな画像でも_変換とプレビューが現実的な時間で�
     html = render(out)
     assert time.time() - t0 < 5
     assert "data:image/png;base64," in html
+
+
+# ---- 画像を、パスで参照する書き方 ------------------------------------------------
+def test_文書のフォルダーの中の画像は_相対パス(folder):
+    doc = str(folder / "d.md")
+    r = imgembed.path_reference(str(folder / "images" / "a.png"), doc)
+    assert r["markdown"] == "![a](images/a.png)" and r["relative"] is True and r["bytes"] == len(PNG)
+
+
+def test_同じフォルダーの画像():
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        open(os.path.join(d, "x.png"), "wb").write(PNG)
+        assert imgembed.path_reference(os.path.join(d, "x.png"), os.path.join(d, "d.md"))["markdown"] == "![x](x.png)"
+
+
+def test_上の階層の画像は_相対パスに_二つの点が付く(folder):
+    sub = folder / "docs"
+    sub.mkdir()
+    r = imgembed.path_reference(str(folder / "images" / "a.png"), str(sub / "d.md"))
+    assert r["markdown"] == "![a](../images/a.png)" and r["relative"] is True
+
+
+def test_空白や括弧や_パーセントは符号化し_日本語はそのまま(folder):
+    for name, want in (("pic one.png", "pic%20one.png"), ("a(1).png", "a%281%29.png"), ("100%.png", "100%25.png"),
+                       ("図 1.png", "図%201.png"), ("a#b.png", "a%23b.png")):
+        (folder / name).write_bytes(PNG)
+        r = imgembed.path_reference(str(folder / name), str(folder / "d.md"))
+        assert r["markdown"].endswith("(%s)" % want), (name, r["markdown"])
+
+
+def test_保存していない文書では_絶対パス(folder):
+    r = imgembed.path_reference(str(folder / "images" / "a.png"), None)
+    assert r["relative"] is False and r["markdown"].startswith("![a](file:///") and r["markdown"].endswith("/images/a.png)")
+
+
+def test_別のドライブなら_絶対パス(folder, monkeypatch):
+    def boom(*a, **k):
+        raise ValueError("path is on mount 'F:', start on mount 'C:'")
+    monkeypatch.setattr(os.path, "relpath", boom)
+    r = imgembed.path_reference(str(folder / "images" / "a.png"), str(folder / "d.md"))
+    assert r["relative"] is False and "file:///" in r["markdown"]
+
+
+def test_説明文を指定でき_括弧はエスケープする(folder):
+    r = imgembed.path_reference(str(folder / "images" / "a.png"), str(folder / "d.md"), alt="図[1]")
+    assert r["markdown"] == "![図\\[1\\]](images/a.png)"
+
+
+def test_SVGも参照できる(folder):
+    r = imgembed.path_reference(str(folder / "logo.svg"), str(folder / "d.md"))
+    assert r["markdown"] == "![logo](logo.svg)"
+
+
+def test_参照できない画像は理由を返す(folder):
+    assert "見つかりません" in imgembed.path_reference(str(folder / "none.png"), str(folder / "d.md"))["error"]
+    assert "形式" in imgembed.path_reference(str(folder / "note.pdf"), str(folder / "d.md"))["error"]
+
+
+def test_参照の書き方で_プレビューに画像が出る(folder, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    api = mdeditor.Api(None)
+    (folder / "pic one.png").write_bytes(PNG)
+    doc = str(folder / "d.md")
+    for image in ("images/a.png", "pic one.png"):
+        md = imgembed.path_reference(str(folder / image), doc)["markdown"]
+        html = api.render(md + "\n", doc)
+        assert "data:image/png;base64," in html, (md, html)

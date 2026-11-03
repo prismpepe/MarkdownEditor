@@ -336,11 +336,12 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
             <span class="glabel">画像・表・データ</span>
             <span class="gbtns">
               <button data-f="image" title="画像 (![説明](パス) の書き方を、カーソルの位置に入れる)">🖼 画像</button>
-              <select id="fImage" title="画像を Base64 にして文書へ埋め込む（画像ファイルを別に添えずに、Markdown ファイル1つで配布できる）">
-                <option value="">画像の埋め込み…</option>
-                <option value="pick">画像ファイルを選んで挿入</option>
-                <option value="all">文書内の画像をすべて Base64 にする</option>
-                <option value="back">Base64 の画像をファイルへ戻す</option>
+              <select id="fImage" title="画像ファイルを選んで、文書へ入れる。パスで参照する書き方（画像ファイルが別に要る）と、Base64 で文書の中へ埋め込む書き方（Markdown ファイル1つで配布できる）を選べる">
+                <option value="">画像の挿入…</option>
+                <option value="ref">画像を選んで挿入（パスで参照）</option>
+                <option value="pick">画像を選んで挿入（Base64 で埋め込み）</option>
+                <option value="all">文書内の画像をすべて Base64 に変換</option>
+                <option value="back">Base64 の画像をファイルに戻す</option>
               </select>
               <button data-f="table" title="表 (空の表のひな形を、カーソルの位置に入れる)">▦ 表</button>
               <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
@@ -410,13 +411,14 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <div class="trow"><textarea id="tSrc" placeholder="ここに Excel のセルを貼り付けます（Ctrl+V）。1行目に、列の名前を入れてコピーしてください。JSON も貼り付けられます" spellcheck="false"></textarea></div>
     <div class="trow"><button id="tClip">クリップボードから貼り付け</button><button id="tFile">ファイルを読み込む…（CSV・JSON）</button><span id="tInfo"></span></div>
     <div class="trow">
-      <label>出力: <select id="tFmt"><option value="md">Markdown の表</option><option value="json">JSON（Vega-Lite などのデータ）</option></select></label>
+      <label>出力: <select id="tFmt"><option value="md">Markdown の表</option><option value="html">HTML の表</option><option value="json">JSON（Vega-Lite などのデータ）</option></select></label>
       <label>入力の形式: <select id="tSource"><option value="auto">自動</option><option value="table">表（Excel・CSV）</option><option value="json">JSON</option></select></label>
       <label>区切り: <select id="tDelim"><option value="auto">自動</option><option value="tab">タブ（Excel）</option><option value="comma">カンマ（CSV）</option><option value="semicolon">セミコロン</option></select></label>
       <label><input id="tHead" type="checkbox" checked> 1行目を、列の名前にする</label>
     </div>
     <div class="trow" id="tMdOpts">
       <label>列の配置: <select id="tAlign"><option value="auto">自動（数値だけの列は右寄せ）</option><option value="left">すべて左寄せ</option><option value="center">すべて中央</option><option value="right">すべて右寄せ</option><option value="none">指定しない</option></select></label>
+      <label id="tBorderL"><input id="tBorder" type="checkbox"> 罫線を付ける（border="1"）</label>
     </div>
     <div class="trow" id="tJsonOpts">
       <label><input id="tNum" type="checkbox" checked> 数値は、数値にする</label>
@@ -1170,6 +1172,19 @@ function applyTextEdit(newText) {
 const fmtBytes = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 const listLines = (items, fmt, max = 8) => items.slice(0, max).map(fmt).join('\n') + (items.length > max ? `\n…ほか ${items.length - max} 件` : '');
 
+// 画像ファイルを選んで、パスで参照する書き方（![説明](パス)）を入れる
+async function insertImageByPath() {
+  const p = await api.pick_image(doc.path ? dirName(doc.path) : folder, true);
+  if (!p) return;
+  const sel = cm.getSelection();
+  const r = await api.image_path_reference(p, doc.path || null, sel && !sel.includes('\n') ? sel : null);
+  if (r.error) { status(r.error, true, 6000); return; }
+  cm.replaceSelection(r.markdown, 'end'); cm.focus();
+  const big = r.bytes > 20 * 1024 * 1024 ? '　20MB を超えているので、プレビューには表示されません' : '';
+  if (r.relative) status(`画像をパスで挿入しました（相対パス: ${r.path}）${big}`, !!big, 7000);
+  else status((doc.path ? '別のドライブの画像なので、絶対パス（file:///…）で入れました。' : '文書を保存していないので、絶対パス（file:///…）で入れました。保存したあと、相対パスに直すことをお勧めします。') + big, true, 10000);
+}
+
 async function embedPickImage() {
   const p = await api.pick_image(doc.path ? dirName(doc.path) : folder);
   if (!p) return;
@@ -1248,19 +1263,19 @@ async function tocDialog() {
 
 // ============================================================ 表・データの取り込み（Excel のセル・CSV → Markdown の表・JSON）
 const tableDlgOpen = () => !$('tveil').hidden;
-const TABLE_DEFAULT = { fmt: 'md', source: 'auto', delim: 'auto', header: true, align: 'auto', numbers: true, empty: 'null', fence: false };
+const TABLE_DEFAULT = { fmt: 'md', source: 'auto', delim: 'auto', header: true, align: 'auto', numbers: true, empty: 'null', fence: false, border: false };
 let tablePreviewSeq = 0, tableTimer = null, tableJsonName = 'data.json';
 const tableOpts = () => ({ fmt: $('tFmt').value, source: $('tSource').value, delim: $('tDelim').value, header: $('tHead').checked, align: $('tAlign').value,
-  numbers: $('tNum').checked, empty: $('tEmpty').value, fence: $('tFence').checked });
+  numbers: $('tNum').checked, empty: $('tEmpty').value, fence: $('tFence').checked, border: $('tBorder').checked });
 function applyTableOpts(o) {
   o = { ...TABLE_DEFAULT, ...o };
   $('tFmt').value = o.fmt; $('tSource').value = o.source; $('tDelim').value = o.delim; $('tHead').checked = o.header; $('tAlign').value = o.align;
-  $('tNum').checked = o.numbers; $('tEmpty').value = o.empty; $('tFence').checked = o.fence;
+  $('tNum').checked = o.numbers; $('tEmpty').value = o.empty; $('tFence').checked = o.fence; $('tBorder').checked = o.border;
 }
 function tableInfo(text, bad) { $('tInfo').textContent = text; $('tInfo').classList.toggle('bad', !!bad); }
 async function refreshTablePreview() {
   const o = tableOpts(), text = $('tSrc').value, seq = ++tablePreviewSeq;
-  $('tMdOpts').hidden = o.fmt !== 'md'; $('tJsonOpts').hidden = o.fmt !== 'json'; $('tSave').hidden = o.fmt !== 'json';
+  $('tMdOpts').hidden = o.fmt === 'json'; $('tBorderL').hidden = o.fmt !== 'html'; $('tJsonOpts').hidden = o.fmt !== 'json'; $('tSave').hidden = o.fmt !== 'json';
   const none = msg => { tableInfo(msg, false); $('tPrev').textContent = ''; $('tInsert').disabled = true; $('tSave').disabled = true; };
   if (!text.trim()) { none('貼り付けるか、CSV ファイルを読み込んでください'); return; }
   const r = await api.table_convert(text, o, 30);
@@ -1292,8 +1307,8 @@ async function tableInsert() {
   if (r.error) { tableInfo(r.error, true); return; }
   prefs.table = o; api.set_prefs({ table: o });
   closeTableDlg();
-  cm.operation(() => o.fmt === 'md' ? insertBlock(r.output) : cm.replaceSelection(r.output, 'end'));
-  status(o.fmt === 'md' ? `表を挿入しました（${r.cols} 列 × ${r.rows} 行）。元に戻すには Ctrl+Z` : `JSON を挿入しました（${r.rows} 件）。元に戻すには Ctrl+Z`, false, 6000);
+  cm.operation(() => o.fmt === 'json' ? cm.replaceSelection(r.output, 'end') : insertBlock(r.output));
+  status(o.fmt === 'json' ? `JSON を挿入しました（${r.rows} 件）。元に戻すには Ctrl+Z` : `${o.fmt === 'html' ? 'HTML の表' : '表'}を挿入しました（${r.cols} 列 × ${r.rows} 行）。元に戻すには Ctrl+Z`, false, 6000);
 }
 async function tableFromFile() {
   const p = await api.pick_data_file(doc.path ? dirName(doc.path) : folder);
@@ -1380,12 +1395,12 @@ function setupFormatBar() {
   for (const [k, c] of Object.entries(MdFormat.CHARTS)) $('fDiagram').add(new Option(c[0], 'chart:' + k));
   $('fImage').onchange = () => {
     const v = $('fImage').value; $('fImage').value = ''; if (!v || doc.readonly) return;
-    ({ pick: embedPickImage, all: embedAllImages, back: embedBackToFiles })[v]();
+    ({ ref: insertImageByPath, pick: embedPickImage, all: embedAllImages, back: embedBackToFiles })[v]();
   };
   $('fToc').onclick = tocDialog;
   $('fTable').onclick = openTableDlg;
   $('tSrc').addEventListener('input', scheduleTablePreview);
-  for (const id of ['tFmt', 'tSource', 'tDelim', 'tHead', 'tAlign', 'tNum', 'tEmpty', 'tFence']) $(id).addEventListener('change', refreshTablePreview);
+  for (const id of ['tFmt', 'tSource', 'tDelim', 'tHead', 'tAlign', 'tNum', 'tEmpty', 'tFence', 'tBorder']) $(id).addEventListener('change', refreshTablePreview);
   $('tClip').onclick = tableFromClipboard; $('tFile').onclick = tableFromFile;
   $('tInsert').onclick = tableInsert; $('tSave').onclick = tableSaveJson; $('tClose').onclick = closeTableDlg;
   $('fDiagram').onchange = () => { const v = $('fDiagram').value; $('fDiagram').value = ''; if (!v) return; runFormat(() => v.startsWith('chart:') ? MdFormat.chart(cm, v.slice(6)) : MdFormat.diagram(cm, v)); };

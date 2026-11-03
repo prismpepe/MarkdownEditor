@@ -36,7 +36,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.11.1"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.12.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -278,8 +278,16 @@ class Api:
         return path
 
     # --- 画像の Base64 埋め込み・目次（imgembed.py / toc.py。画面は結果を受け取って本文へ反映する） ---
-    def pick_image(self, initial=None):
-        return dialogs.pick_image(self._initial_dir(initial))
+    def pick_image(self, initial=None, with_svg=False):
+        title = "挿入する画像を選ぶ（パスで参照）" if with_svg else "埋め込む画像を選ぶ（Base64）"
+        return dialogs.pick_image(self._initial_dir(initial), bool(with_svg), title)
+
+    def image_path_reference(self, image_path, doc_path=None, alt=None):
+        """画像ファイルを、パスで参照する Markdown（![説明](パス)）にする。"""
+        try:
+            return imgembed.path_reference(image_path, doc_path, alt)
+        except OSError as e:
+            return {"error": "画像を読めません: %s" % e}
 
     def image_insert_parts(self, text, path):
         try:
@@ -333,7 +341,7 @@ class Api:
             return tabular.convert(
                 text, fmt=opts.get("fmt", "md"), source=opts.get("source", "auto"), delimiter=opts.get("delim", "auto"), header=bool(opts.get("header", True)),
                 align=opts.get("align", "auto"), numbers=bool(opts.get("numbers", True)), empty=opts.get("empty", "null"),
-                fence=bool(opts.get("fence", False)), limit=int(limit or 0))
+                fence=bool(opts.get("fence", False)), limit=int(limit or 0), border=bool(opts.get("border", False)))
         except Exception as e:                 # 想定外の失敗で、画面を止めない
             return {"error": "変換できませんでした: %s" % e}
 
