@@ -177,6 +177,28 @@ def drive():
         msg = js("document.getElementById('status').textContent") if js("!!document.getElementById('status')") else ''
         check("保存の知らせに、data.url に書く相対パスが出る", 'data/売上.json' in js("document.body.innerText"), True)
 
+        # ---- JSON から表を作る（逆向き）
+        js("document.getElementById('fTable').click()")
+        set_ctl('tFmt', 'md')
+        set_src('[{"月": "一月", "売上": 1234, "備考": "好調"}, {"月": "二月", "売上": 987, "備考": null}, {"月": "三月", "地域": {"a": 1}}]')
+        check("JSON を貼り付けると、表のプレビューになる（列の順は、キーが出てきた順）", preview().split("\n")[:2], ["| 月 | 売上 | 備考 | 地域 |", "| --- | ---: | --- | --- |"])
+        check("入れ子は、属性つきで、1つのセルに入る", '| 三月 |  |  | {"a": 1} |' in preview(), True)
+        check("JSON として読んだことが、情報に出る", 'JSON として読みました' in js("document.getElementById('tInfo').textContent"), True)
+        set_ctl('tSource', 'table')
+        check("入力の形式を「表」にすると、JSON の文字も表として読む", 'JSON として読みました' in js("document.getElementById('tInfo').textContent"), False)
+        set_ctl('tSource', 'json')
+        set_src("a,b\n1,2\n")
+        check("入力の形式を「JSON」にして読めないときは、理由が赤く出る", (js("document.getElementById('tInfo').classList.contains('bad')"), 'JSON として読めません' in js("document.getElementById('tInfo').textContent")), (True, True))
+        set_ctl('tSource', 'auto')
+        json_path = os.path.join(tmp, 'd.json')
+        open(json_path, 'w', encoding='utf-8').write('[{"区分": "A", "件数": 10}]')
+        js("api.pick_data_file = () => Promise.resolve(%s)" % json.dumps(json_path))
+        js("document.getElementById('tFile').click()")
+        wait("document.getElementById('tSrc').value.startsWith('[')")
+        time.sleep(0.8)
+        check("JSON ファイルを読み込める", preview().split("\n")[0], "| 区分 | 件数 |")
+        js("document.getElementById('tClose').click()")
+
         # ---- Esc・読み取り専用
         js("document.getElementById('fTable').click()")
         js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))")

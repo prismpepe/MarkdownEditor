@@ -36,7 +36,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.9.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.10.0"          # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -306,15 +306,15 @@ class Api:
             return {"error": "画像を書き出せません: %s" % e}
 
     # --- 表・データの取り込み（tabular.py）。Excel のセル・CSV を、Markdown の表や JSON にする ---
-    TABLE_EXTENSIONS = (".csv", ".tsv", ".txt")
+    TABLE_EXTENSIONS = (".csv", ".tsv", ".txt", ".json")
 
     def pick_data_file(self, initial=None):
         return dialogs.pick_data(self._initial_dir(initial))
 
     def read_table_file(self, path):
-        """CSV などのファイルを読んで、本文を返す（文字コードは、UTF-8・Shift-JIS などを自動で判別する）。"""
+        """CSV・JSON などのファイルを読んで、本文を返す（文字コードは、UTF-8・Shift-JIS などを自動で判別する）。"""
         if not str(path).lower().endswith(self.TABLE_EXTENSIONS):
-            return {"error": "読めるファイルは .csv / .tsv / .txt です"}
+            return {"error": "読めるファイルは .csv / .tsv / .txt / .json です"}
         try:
             if os.path.getsize(path) > MAX_DATA_FILE:
                 return {"error": "ファイルが大きすぎます（20MBまで）"}
@@ -331,7 +331,7 @@ class Api:
         opts = opts if isinstance(opts, dict) else {}
         try:
             return tabular.convert(
-                text, fmt=opts.get("fmt", "md"), delimiter=opts.get("delim", "auto"), header=bool(opts.get("header", True)),
+                text, fmt=opts.get("fmt", "md"), source=opts.get("source", "auto"), delimiter=opts.get("delim", "auto"), header=bool(opts.get("header", True)),
                 align=opts.get("align", "auto"), numbers=bool(opts.get("numbers", True)), empty=opts.get("empty", "null"),
                 fence=bool(opts.get("fence", False)), limit=int(limit or 0))
         except Exception as e:                 # 想定外の失敗で、画面を止めない

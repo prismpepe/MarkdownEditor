@@ -1,6 +1,7 @@
 """表のデータ（Excel のセル、CSV）を、Markdown の表や JSON データに変換する（エディタ）。
 
-取り込み元は、Excel のセルをコピーしたテキスト（タブ区切り）と、CSV ファイルの中身。区切り文字は自動で見分ける。
+取り込み元は、Excel のセルをコピーしたテキスト（タブ区切り）と、CSV ファイルの中身、JSON のデータ。
+区切り文字や、表か JSON かは、自動で見分ける。
 同じデータを、次のどちらにも変換する。
 
 - Markdown の表: `| 見出し | … |` と区切り行。数値だけの列は、右寄せ（`---:`）にする。
@@ -14,6 +15,15 @@
 - JSON では、数値のセルを数値にできる（`1,234` のような桁区切りも）。`007` のように先頭が 0 の数字や、
   `12%` は文字列のまま（番号や、単位つきの値を壊さないため）。空のセルは、null・空の文字列・項目を省略から選ぶ。
 - Markdown では、セルの中の `|` を `\\|` に、改行を `<br>` にする（表が崩れないように）。
+
+JSON から表を作るとき（Excel・CSV から JSON への変換の、逆向き）:
+- 読めるのは、オブジェクトの配列 `[{…}, {…}]`。`{"values": [...]}` と、`data.values` を持つ Vega-Lite のグラフの定義、
+  配列の配列 `[["月", "売上"], ["一月", 3]]`（1行目を見出しにするかは、表と同じ指定）も読める。
+- 列の名前はキー。列の順は、キーが最初に出てきた順（全部のオブジェクトを見る。「空欄は項目を省く」で作った JSON でも、列が欠けない）。
+- null は空のセル、数値・真偽値は、その文字（`1234`、`true`）。入れ子のもの（値がオブジェクトや配列）は、
+  `{"a": 1, "b": 2}` のように、属性（キー）つきの JSON の文字列にして、1つのセルに入れる。
+- 往復しても食い違わないようにしてある（CSV → JSON → 表 が、CSV → 表 と同じ）。ただし、`1,234` は `1234` になる
+  （JSON にしたときに数値にしたため）。
 """
 import csv
 import io
@@ -86,6 +96,70 @@ def _number(cell):
     return None
 
 
+def _cell_of(value):
+    """JSON の値を、表のセルの文字にする。"""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)         # 入れ子は、属性（キー）つきで、1つのセルに入れる
+    if isinstance(value, float):
+        return json.dumps(value)
+    return str(value)
+
+
+def from_json(text):
+    """JSON を、表にする。戻り値: {"kind": "json", "rows": [...], "header": 見出しの行があるか, "objects": オブジェクトの並び か None}。
+    読めないときは ValueError（利用者に見せる文言）。"""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ValueError("JSON として読めません（%d 行目 %d 文字目付近: %s）" % (e.lineno, e.colno, e.msg))
+    if isinstance(data, dict):
+        inner = data.get("values")
+        if inner is None and isinstance(data.get("data"), dict):
+            inner = data["data"].get("values")                  # Vega-Lite のグラフの定義
+        if not isinstance(inner, list):
+            raise ValueError("JSON は、オブジェクトの配列 [{…}, …] で指定してください（{\"values\": [...]} も使えます）")
+        data = inner
+    if not isinstance(data, list):
+        raise ValueError("JSON は、オブジェクトの配列 [{…}, …] で指定してください")
+    if len(data) > MAX_ROWS:
+        raise ValueError("行が多すぎます（%d 行まで）" % MAX_ROWS)
+    if not data:
+        raise ValueError("表のデータがありません")
+    if all(isinstance(r, dict) for r in data):
+        names = []
+        seen = set()
+        for r in data:                                          # 列の順は、キーが最初に出てきた順（全部のオブジェクトを見る）
+            for k in r:
+                if k not in seen:
+                    seen.add(k)
+                    names.append(k)
+        rows = [list(names)] + [[_cell_of(r.get(k)).strip() for k in names] for r in data]
+        return {"kind": "json", "rows": rows, "header": True, "objects": data}
+    if all(isinstance(r, list) for r in data):
+        width = max(len(r) for r in data)
+        rows = [[_cell_of(c).strip() for c in r] + [""] * (width - len(r)) for r in data]
+        return {"kind": "json", "rows": rows, "header": None, "objects": None}
+    raise ValueError("JSON は、オブジェクトの配列 [{…}, …]（または配列の配列）で指定してください")
+
+
+def load(text, source="auto", delimiter="auto"):
+    """表か JSON かを見分けて読む。自動のときは、`[` か `{` で始まり、JSON として読めれば JSON、読めなければ表として扱う。"""
+    stripped = text.lstrip("\ufeff").strip()
+    if source in ("auto", "json") and stripped[:1] in ("[", "{"):
+        try:
+            return from_json(stripped)
+        except ValueError:
+            if source == "json":
+                raise
+    elif source == "json":
+        raise ValueError("JSON として読めません（[ か { で始まるデータを指定してください）")
+    return {"kind": "table", "rows": parse(text, delimiter), "header": None, "objects": None}
+
+
 def to_markdown(rows, header=True, align="auto"):
     names = names_of(rows, header)
     body = body_of(rows, header)
@@ -125,8 +199,8 @@ def to_json(rows, header=True, numbers=True, empty="null"):
     return "[\n" + ",\n".join("  " + json.dumps(o, ensure_ascii=False) for o in objects) + "\n]"
 
 
-def convert(text, fmt="md", delimiter="auto", header=True, align="auto", numbers=True, empty="null", fence=False, limit=0):
-    """変換する。戻り値: {"output","rows","cols","lines"} か {"error"}。
+def convert(text, fmt="md", delimiter="auto", header=True, align="auto", numbers=True, empty="null", fence=False, limit=0, source="auto"):
+    """変換する。戻り値: {"output","rows","cols","lines","source"} か {"error"}。source は、読み取った形（"table" か "json"）。
     limit > 0 なら、出力の最初の limit 行だけを返す（プレビュー用。変換そのものは全部行う）。"""
     if fmt not in ("md", "json"):
         return {"error": "出力の形式が正しくありません"}
@@ -134,16 +208,26 @@ def convert(text, fmt="md", delimiter="auto", header=True, align="auto", numbers
         return {"error": "列の配置が正しくありません"}
     if empty not in ("null", "empty", "omit"):
         return {"error": "空欄の扱いが正しくありません"}
+    if source not in ("auto", "table", "json"):
+        return {"error": "入力の形式が正しくありません"}
     try:
-        rows = parse(text, delimiter)
+        data = load(text, source, delimiter)
     except ValueError as e:
         return {"error": str(e)}
+    rows = data["rows"]
     if not rows:
         return {"error": "表のデータがありません"}
-    out = to_markdown(rows, header, align) if fmt == "md" else to_json(rows, header, numbers, empty)
+    if data["header"] is not None:
+        header = data["header"]                      # オブジェクトの配列は、キーが列の名前（「1行目を、列の名前にする」は効かない）
+    if fmt == "md":
+        out = to_markdown(rows, header, align)
+    elif data["objects"] is not None:                # JSON を JSON に直すときは、元の値のまま、整えて出す
+        out = "[\n" + ",\n".join("  " + json.dumps(o, ensure_ascii=False) for o in data["objects"]) + "\n]"
+    else:
+        out = to_json(rows, header, numbers, empty)
     if fmt == "json" and fence:
         out = "```json\n" + out + "\n```"
     lines = out.split("\n")
     if limit and len(lines) > limit:
         out = "\n".join(lines[:limit]) + "\n…（あと %d 行）" % (len(lines) - limit)
-    return {"output": out, "rows": len(body_of(rows, header)), "cols": len(rows[0]), "lines": len(lines)}
+    return {"output": out, "rows": len(body_of(rows, header)), "cols": len(rows[0]), "lines": len(lines), "source": data["kind"]}

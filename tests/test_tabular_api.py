@@ -93,3 +93,24 @@ def test_表の設定は正しい項目だけ覚える():
     assert uiprefs.clean_prefs({"table": ok}) == {"table": ok}
     assert uiprefs.clean_prefs({"table": {"fmt": "xml", "delim": "pipe", "header": "yes", "x": 1}}) == {}
     assert uiprefs.clean_prefs({"table": {"fmt": "md", "bad": 1}}) == {"table": {"fmt": "md"}}
+
+
+def test_JSONファイルを読んで表にできる(api, tmp_path):
+    p = tmp_path / "d.json"
+    p.write_text('[{"月": "一月", "売上": 3}]', encoding="utf-8")
+    r = api.read_table_file(str(p))
+    assert "error" not in r and r["name"] == "d.json"
+    out = api.table_convert(r["text"], {"fmt": "md"})
+    assert out["source"] == "json" and out["output"].split("\n")[0] == "| 月 | 売上 |"
+
+
+def test_入力の形式を指定できる_誤りは理由を返す(api):
+    assert api.table_convert('[{"a": 1}]', {"source": "table"})["source"] == "table"
+    assert "JSON として読めません" in api.table_convert("a,b\n1,2\n", {"source": "json"})["error"]
+    assert "error" in api.table_convert("a,b\n", {"source": "xml"})
+
+
+def test_入力の形式も覚える():
+    import uiprefs
+    assert uiprefs.clean_prefs({"table": {"source": "json"}}) == {"table": {"source": "json"}}
+    assert uiprefs.clean_prefs({"table": {"source": "xml"}}) == {}

@@ -393,11 +393,12 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 <div id="tveil" hidden>
   <div id="tdlg" role="dialog" aria-label="表・データの取り込み">
     <h3>表・データの取り込み</h3>
-    <p class="hint">Excel のセルをコピーして、下の欄に貼り付ける（Ctrl+V）か、CSV ファイルを読み込みます。同じデータから、Markdown の表と、JSON（Vega-Lite などで使うデータ）を作れます。</p>
-    <div class="trow"><textarea id="tSrc" placeholder="ここに Excel のセルを貼り付けます（Ctrl+V）。1行目に、列の名前を入れてコピーしてください" spellcheck="false"></textarea></div>
-    <div class="trow"><button id="tClip">クリップボードから貼り付け</button><button id="tFile">CSV ファイルを読み込む…</button><span id="tInfo"></span></div>
+    <p class="hint">Excel のセルをコピーして、下の欄に貼り付ける（Ctrl+V）か、CSV・JSON のファイルを読み込みます。同じデータから、Markdown の表と、JSON（Vega-Lite などで使うデータ）を作れます。JSON のデータ（<code>[{…}, …]</code> の形）を貼り付けて、表にすることもできます。</p>
+    <div class="trow"><textarea id="tSrc" placeholder="ここに Excel のセルを貼り付けます（Ctrl+V）。1行目に、列の名前を入れてコピーしてください。JSON も貼り付けられます" spellcheck="false"></textarea></div>
+    <div class="trow"><button id="tClip">クリップボードから貼り付け</button><button id="tFile">ファイルを読み込む…（CSV・JSON）</button><span id="tInfo"></span></div>
     <div class="trow">
       <label>出力: <select id="tFmt"><option value="md">Markdown の表</option><option value="json">JSON（Vega-Lite などのデータ）</option></select></label>
+      <label>入力の形式: <select id="tSource"><option value="auto">自動</option><option value="table">表（Excel・CSV）</option><option value="json">JSON</option></select></label>
       <label>区切り: <select id="tDelim"><option value="auto">自動</option><option value="tab">タブ（Excel）</option><option value="comma">カンマ（CSV）</option><option value="semicolon">セミコロン</option></select></label>
       <label><input id="tHead" type="checkbox" checked> 1行目を、列の名前にする</label>
     </div>
@@ -1234,13 +1235,13 @@ async function tocDialog() {
 
 // ============================================================ 表・データの取り込み（Excel のセル・CSV → Markdown の表・JSON）
 const tableDlgOpen = () => !$('tveil').hidden;
-const TABLE_DEFAULT = { fmt: 'md', delim: 'auto', header: true, align: 'auto', numbers: true, empty: 'null', fence: false };
+const TABLE_DEFAULT = { fmt: 'md', source: 'auto', delim: 'auto', header: true, align: 'auto', numbers: true, empty: 'null', fence: false };
 let tablePreviewSeq = 0, tableTimer = null, tableJsonName = 'data.json';
-const tableOpts = () => ({ fmt: $('tFmt').value, delim: $('tDelim').value, header: $('tHead').checked, align: $('tAlign').value,
+const tableOpts = () => ({ fmt: $('tFmt').value, source: $('tSource').value, delim: $('tDelim').value, header: $('tHead').checked, align: $('tAlign').value,
   numbers: $('tNum').checked, empty: $('tEmpty').value, fence: $('tFence').checked });
 function applyTableOpts(o) {
   o = { ...TABLE_DEFAULT, ...o };
-  $('tFmt').value = o.fmt; $('tDelim').value = o.delim; $('tHead').checked = o.header; $('tAlign').value = o.align;
+  $('tFmt').value = o.fmt; $('tSource').value = o.source; $('tDelim').value = o.delim; $('tHead').checked = o.header; $('tAlign').value = o.align;
   $('tNum').checked = o.numbers; $('tEmpty').value = o.empty; $('tFence').checked = o.fence;
 }
 function tableInfo(text, bad) { $('tInfo').textContent = text; $('tInfo').classList.toggle('bad', !!bad); }
@@ -1252,7 +1253,7 @@ async function refreshTablePreview() {
   const r = await api.table_convert(text, o, 30);
   if (seq !== tablePreviewSeq) return;                     // 新しい入力があれば、古い結果は捨てる
   if (r.error) { none(r.error); tableInfo(r.error, true); return; }
-  tableInfo(`${r.cols} 列 × ${r.rows} 行（データ）`, false);
+  tableInfo(`${r.cols} 列 × ${r.rows} 行（データ）` + (r.source === 'json' ? '　JSON として読みました' : ''), false);
   $('tPrev').textContent = r.output; $('tInsert').disabled = false; $('tSave').disabled = false;
 }
 const scheduleTablePreview = () => { clearTimeout(tableTimer); tableTimer = setTimeout(refreshTablePreview, 200); };
@@ -1371,7 +1372,7 @@ function setupFormatBar() {
   $('fToc').onclick = tocDialog;
   $('fTable').onclick = openTableDlg;
   $('tSrc').addEventListener('input', scheduleTablePreview);
-  for (const id of ['tFmt', 'tDelim', 'tHead', 'tAlign', 'tNum', 'tEmpty', 'tFence']) $(id).addEventListener('change', refreshTablePreview);
+  for (const id of ['tFmt', 'tSource', 'tDelim', 'tHead', 'tAlign', 'tNum', 'tEmpty', 'tFence']) $(id).addEventListener('change', refreshTablePreview);
   $('tClip').onclick = tableFromClipboard; $('tFile').onclick = tableFromFile;
   $('tInsert').onclick = tableInsert; $('tSave').onclick = tableSaveJson; $('tClose').onclick = closeTableDlg;
   $('fDiagram').onchange = () => { const v = $('fDiagram').value; $('fDiagram').value = ''; if (!v) return; runFormat(() => v.startsWith('chart:') ? MdFormat.chart(cm, v.slice(6)) : MdFormat.diagram(cm, v)); };
