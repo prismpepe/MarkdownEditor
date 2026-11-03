@@ -98,7 +98,9 @@ def finish():
     check("編集ボタンのグループの名前と並び", js("[...document.querySelectorAll('#fmt .fgroup .glabel')].map(e => e.textContent)"),
           ['書式', 'リスト・ブロック', '画像・表・データ', '目次・チャート', '編集'])
     check("引用は、リスト・ブロックのグループで、コードブロックの隣", js("[...document.querySelectorAll('#fmt .fgroup')[1].querySelectorAll('button')].map(b => b.dataset.f)"),
-          ['ul', 'ol', 'task', 'quote', 'codeblock'])
+          ['ul', 'ol', 'task', 'quote', 'codeblock', 'rule'])
+    check("書式のグループは、文字単位のもの（見出し・装飾・リンク）だけ", js("[...document.querySelectorAll('#fmt .fgroup')[0].querySelectorAll('button')].map(b => b.dataset.f)"),
+          ['bold', 'italic', 'strike', 'code', 'link'])
     check("チャートの選択欄の名前", js("document.querySelector('#fDiagram option').textContent"), 'チャートを挿入…')
     check("既定の3画面（幅1400）では、3段（2+1+2グループ）に折り返す", (w.resize(1400, 700), time.sleep(0.8), js("""(() => { const tops = [...document.querySelectorAll('#fmt .fgroup')].map(g => Math.round(g.getBoundingClientRect().top));
         const u = [...new Set(tops)].sort((a, b) => a - b); return u.map(t => tops.filter(x => x === t).length).join('+'); })()"""))[2], '2+1+2')
