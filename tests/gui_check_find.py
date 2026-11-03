@@ -74,6 +74,22 @@ def drive():
         check("⇄ ボタン: 検索欄に焦点がある（すぐ打てる）", js("document.activeElement.id"), 'fq')
         js("finder.close(); openFind(true)")
 
+        # キー入力の経路（編集欄にフォーカスがある状態で Ctrl+F / Ctrl+H）。openFind() を直接呼ぶ検査では通らない経路で、
+        # 編集欄がフォーカスを取り戻し、検索欄に打てず Esc でも閉じなかった（キャプチャ段階で処理していたため）
+        KEY = "(el, key, ctrl) => { el.dispatchEvent(new KeyboardEvent('keydown', {key, ctrlKey: ctrl, bubbles: true, cancelable: true})); }"
+        for name, key, rrow in (("Ctrl+F", "f", False), ("Ctrl+H", "h", True)):
+            js("finder.close(); cm.focus()")
+            js("(%s)(cm.getInputField(), '%s', true)" % (KEY, key))
+            time.sleep(0.2)
+            check("%s（編集欄から）: 検索バーが開き、検索欄に焦点がある（すぐ打てる）" % name,
+                  (js(VIS + "('find')"), js(VIS + "('rrow')"), js("document.activeElement.id")), (True, rrow, 'fq'))
+            js("(%s)(document.activeElement, 'Escape', false)" % KEY)
+            check("%s で開いたあと Esc で閉じる" % name, (js("finder.isOpen()"), js("cm.hasFocus()")), (False, True))
+        js("finder.close(); cm.focus(); (%s)(cm.getInputField(), 'F3', false)" % KEY)
+        time.sleep(0.2)
+        check("F3（編集欄から）: 検索バーが開き、検索欄に焦点がある", (js("finder.isOpen()"), js("document.activeElement.id")), (True, 'fq'))
+        js("finder.close(); openFind(true)")
+
         setdoc("Apple apple APPLE banana\napple pie")
         setq("apple")
         check("大文字小文字を区別しないで4件", js("finder.count()"), 4)

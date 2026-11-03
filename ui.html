@@ -1658,9 +1658,11 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase(), c = e.ctrlKey;
   const inEditor = cm && cm.hasFocus();
   if (e.key === 'Escape') hideCtx();
-  if (c && !e.shiftKey && k === 'f') { e.preventDefault(); openFind(false); return; }
-  if (c && !e.shiftKey && k === 'h') { e.preventDefault(); openFind(true); return; }
-  if (e.key === 'F3') { e.preventDefault(); if (!finder.isOpen()) openFind(false); else finder.step(e.shiftKey ? -1 : 1); return; }
+  // 検索を開くキーは、ここで止めて編集欄へ渡さない。渡すと、検索欄へ移した焦点を、CodeMirror が
+  // 「自分のもの」と見なして編集欄へ引き戻し、検索欄に打てず、Esc でも閉じなくなる（このハンドラーはキャプチャ段階で動く）
+  if (c && !e.shiftKey && k === 'f') { e.preventDefault(); e.stopPropagation(); openFind(false); return; }
+  if (c && !e.shiftKey && k === 'h') { e.preventDefault(); e.stopPropagation(); openFind(true); return; }
+  if (e.key === 'F3') { e.preventDefault(); e.stopPropagation(); if (!finder.isOpen()) openFind(false); else finder.step(e.shiftKey ? -1 : 1); return; }
   if (c && !e.shiftKey && k === 'p') { e.preventDefault(); openPrint(); }
   else if (c && !e.shiftKey && k === 's') { e.preventDefault(); saveClick(); }
   else if (c && e.shiftKey && k === 's') { e.preventDefault(); saveAs(); }
