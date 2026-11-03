@@ -36,7 +36,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.12.1"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.12.2"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -148,9 +148,11 @@ def inline_image(src, base):
         return src
     from urllib.parse import unquote
     path = unquote(src.split("#")[0].split("?")[0])
-    if path.startswith("file:///"):
+    if path.lower().startswith("file:///"):
         path = path[8:]
-    if not os.path.isabs(path):
+    if os.name == "nt" and path[:1] in ("/", "\\") and path[:2] not in ("//", "\\\\"):
+        path = os.path.splitdrive(base)[0] + path     # ドライブを省いた /Users/… は、文書と同じドライブとみなす
+    elif not os.path.isabs(path):
         path = os.path.join(base, path)
     try:
         if os.path.getsize(path) > MAX_INLINE_IMAGE:
@@ -163,6 +165,16 @@ def inline_image(src, base):
     return f"data:{mime};base64,{data}"
 
 
+BAD_LINK = re.compile(r"^(vbscript|javascript|data):", re.I)
+GOOD_DATA_IMAGE = re.compile(r"^data:image/(gif|png|jpeg|webp);", re.I)
+
+
+def validate_link(url):
+    """markdown-it の標準の判定から、file: だけを許す。実際に出してよい書き方かは、sanitize と Api.open_local が決める。"""
+    url = url.strip()
+    return not BAD_LINK.match(url) or bool(GOOD_DATA_IMAGE.match(url))
+
+
 def make_renderer():
     from markdown_it import MarkdownIt
     from markdown_it.common.utils import escapeHtml
@@ -170,6 +182,7 @@ def make_renderer():
     from mdit_py_plugins.tasklists import tasklists_plugin
 
     md = MarkdownIt("commonmark", {"html": True})
+    md.validateLink = validate_link   # 標準では file: を拒み、file:/// の画像が文字のまま出る
     cjk_emphasis.apply(md)       # 日本語の文で、記号に接した ** が強調になるようにする
     autolink.apply(md)           # 文中の URL（https://… や www.…）を、そのままリンクにする（GFM の拡張）
     md.enable(["table", "strikethrough"])

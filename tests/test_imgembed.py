@@ -247,3 +247,24 @@ def test_参照の書き方で_プレビューに画像が出る(folder, tmp_pat
         md = imgembed.path_reference(str(folder / image), doc)["markdown"]
         html = api.render(md + "\n", doc)
         assert "data:image/png;base64," in html, (md, html)
+
+
+def test_絶対パスの書き方は_どれでもプレビューに画像が出る(folder, tmp_path, monkeypatch):
+    """file:///… も、C:/… も、ドライブを省いた /… も（利用者の報告: file:/// が文字のまま出ていた）。"""
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    api = mdeditor.Api(None)
+    (folder / "pic one.png").write_bytes(PNG)
+    doc = str(folder / "d.md")
+    absolute = str(folder / "images" / "a.png").replace("\\", "/")
+    spelled = [
+        "file:///" + absolute,
+        "file:///" + str(folder / "pic one.png").replace("\\", "/").replace(" ", "%20"),
+        absolute,
+        "../" + folder.name + "/images/a.png",
+    ]
+    if os.name == "nt":
+        spelled.append(absolute[2:])                      # ドライブを省いた /Users/…（文書と同じドライブとみなす）
+    for src in spelled:
+        html = api.render("![図](%s)\n" % src, doc)
+        assert "data:image/png;base64," in html, (src, html)
+        assert "![図]" not in html, src                    # 画像にならず文字のまま出ていないこと
