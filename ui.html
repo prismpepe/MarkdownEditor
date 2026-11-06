@@ -190,6 +190,17 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #preview .diagram.vega { background: #fff; border-radius: 6px; padding: 8px 0; }
 #preview .diagram-error { border: 1px solid var(--danger); border-radius: 6px; padding: 8px 12px; margin: 1em 0; }
 #preview .diagram-error p { margin: 0 0 6px; color: var(--danger); }
+/* 数式（KaTeX）。独立した行の数式は、中央に置き、長いときは横へスクロールする */
+#preview .math.block { text-align: center; overflow-x: auto; overflow-y: hidden; margin: 1em 0; }
+#preview .math.block .katex-display { margin: .3em 0; }
+#preview .math-error { color: var(--danger); }
+#preview .math-error code { color: inherit; background: none; padding: 0; white-space: pre-wrap; }
+#preview .math.block.math-error { border: 1px solid var(--danger); border-radius: 6px; padding: 8px 12px; text-align: left; }
+#preview .math-error-msg { margin-top: 6px; font-size: .9em; }
+/* 数式の中の日本語（	ext{確率} など）。KaTeX は、日本語を <span class="cjk_fallback"> で包むが、その CSS は無く、
+   親の指定（KaTeX_Main → Times New Roman → serif）をたどって、システムの代替フォントが使われる。
+   PDF では、これが Type3 フォントになり、Acrobat Reader で警告が出る。本文と同じ、埋め込める日本語フォントを指定する */
+#preview .katex .cjk_fallback { font-family: "Yu Gothic UI", "Meiryo", "MS Gothic"; }
 #preview .empty { color: var(--muted); }
 
 /* 確認ダイアログ（画面内） */
@@ -277,6 +288,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   :root { --code-font: Consolas; }
   #preview code, #preview pre { font-family: var(--code-font), "Yu Gothic UI", "Segoe UI", "Meiryo", "MS Gothic"; font-variant-emoji: text; }
   #preview .diagram { overflow: visible; }
+  #preview .math.block { overflow: visible; break-inside: avoid; }
   #preview .page-break, #preview .pagebreak { break-after: page; height: 0 !important; margin: 0 !important; border: 0 !important; overflow: hidden; }
   #preview .page-break-before { break-before: page; }
   #preview .page-break-after { break-after: page; }
@@ -549,6 +561,7 @@ async function updatePreview(resetScroll) {
   $('preview').innerHTML = html || '<p class="empty">（空の文書です）</p>';
   applyCachedDiagrams();
   applyCachedVega();
+  renderMath(seq);
   pv.scrollTop = keep;
   if (resetScroll) { followCursor = false; pv.scrollTop = 0; }
   else if (followCursor) { followCursor = false; previewToCursor(); }
@@ -559,6 +572,45 @@ async function updatePreview(resetScroll) {
 
 // 図の記憶は「記述＋置き場所の幅」で引く。ガントは幅で全体の大きさを決めるため、幅が変われば描き直す
 const diagramKey = (el, code) => el.offsetWidth + '|' + code;
+
+// ---- 数式（KaTeX）。```math、$$ ... $$、文中の $...$ は、Python が <div|span class="math"> に包んで渡す
+let katexReady = null;
+function loadKatex() {
+  if (!katexReady) katexReady = (async () => {
+    const a = await api.get_katex();
+    const st = document.createElement('style'); st.textContent = a.css; document.head.appendChild(st);
+    const s = document.createElement('script'); s.textContent = a.js; document.head.appendChild(s);
+    return window.katex;
+  })();
+  return katexReady;
+}
+
+// root の中の数式を組む。TeX の誤りは、その位置に、原文と理由を見せる
+function typesetMath(root, katex) {
+  root.querySelectorAll('.math:not(.typeset)').forEach(el => {
+    const tex = el.textContent, display = el.classList.contains('block');
+    el.classList.add('typeset');
+    try {
+      katex.render(tex, el, { displayMode: display, throwOnError: true, output: 'html', strict: 'ignore', trust: false });
+    } catch (e) {
+      const why = String((e && (e.rawMessage || e.message)) || e).split('\n')[0];
+      el.classList.add('math-error');
+      el.textContent = '';
+      const code = document.createElement('code'); code.textContent = (display ? '$$ ' : '$') + tex.trim() + (display ? ' $$' : '$');
+      el.appendChild(code);
+      const msg = document.createElement('div'); msg.className = 'math-error-msg'; msg.textContent = '数式を組めませんでした: ' + why;
+      if (display) el.appendChild(msg); else el.title = msg.textContent;
+    }
+  });
+}
+
+// 打鍵のたびにプレビューが作り直されるので、読み込み済みなら、その場で（描画の待ちなしに）組む
+function renderMath(seq) {
+  if (!document.querySelector('#preview .math:not(.typeset)')) return;
+  if (window.katex) { typesetMath($('preview'), window.katex); return; }
+  loadKatex().then(katex => { if (seq === renderSeq) typesetMath($('preview'), katex); })
+    .catch(e => { katexReady = null; showMsg('数式の描画部品を読み込めませんでした: ' + e); });
+}
 
 function applyCachedDiagrams() {
   document.querySelectorAll('#preview pre.mermaid-src').forEach(pre => {

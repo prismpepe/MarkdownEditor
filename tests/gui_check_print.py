@@ -93,6 +93,10 @@ FONT_DOCS = {
     'mermaid_emoji': "```mermaid\nflowchart LR\n  A[🙂 開始] --> B[📄 文書]\n```\n",
     'vega': "# グラフ\n\n```vega-lite\n" + json.dumps(VEGA_SPEC, ensure_ascii=False) + "\n```\n",
     # 色分けしたコード（日本語のコメント・記号つき）。色は付くが、字体は変えないので、Type3 にならない
+    # 数式（KaTeX のフォント）。フォントは静的な woff2 なので、Type3 にならない。PDF にフォント名が出る
+    'math': ("# 数式\n\n文中の数式 $E=mc^2$ と $\\alpha+\\beta$、日本語 $\\text{確率}$。\n\n"
+             "$$\n\\int_0^\\infty e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}\n$$\n\n"
+             "```math\n\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}\\ \\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\\ \\mathbb{R}\\ \\mathcal{L}\\ \\mathfrak{g}\n```\n"),
     'code': ("# コード\n\n```bat\n@echo off\nREM バッチのコメント\nset NAME=世界\nif exist \"%~dp0a.txt\" (echo 「%NAME%」) else goto :end\n:end\n```\n\n"
              "```powershell\n# 日本語コメント → 矢印 ✓ ⚠\nfunction Get-Foo($a) { Write-Host \"値: $a\" }\n```\n\n"
              "```bash\n#!/bin/bash\n# コメント ★\nNAME=\"あ\"; if [ -f \"$NAME\" ]; then echo \"${NAME}\"; fi\n```\n\n"
@@ -228,7 +232,7 @@ def drive():
     check("ページ範囲は保存されない（次回は「すべて」から始まる）", ("ranges" in saved, "rangeAll" in saved), (False, False))
 
     # 図・グラフの日本語、絵文字・記号は、Type3 フォントにならない（Reader の警告の原因）。図のフォントが日本語を持たない場合（Segoe UI）も同じ
-    for kind in ('mermaid', 'vega', 'symbols', 'mermaid_emoji', 'code'):
+    for kind in ('mermaid', 'vega', 'symbols', 'mermaid_emoji', 'code', 'math'):
         for fam in ('', 'Segoe UI'):
             js("prefs.fonts = Object.assign({}, prefs.fonts, {diagram: {family: %s}}); applyFonts();" % json.dumps(fam))
             js("cm.setValue(%s)" % json.dumps(FONT_DOCS[kind]))
@@ -254,6 +258,15 @@ def drive():
     fills = set(re.findall(rb'([\d.]+ [\d.]+ [\d.]+) rg', b'\n'.join(streams)))
     check("色分けしたコードは、PDF に色つきの文字で出る（文字色が3種類以上）", (r['ok'], len(fills) >= 3), (True, True))
     print("    PDF の文字色の種類:", len(fills), flush=True)
+
+
+    # 数式の PDF: KaTeX のフォントで出る（数式が、画像や空白にならない）。Type3 でないことは、上のループで確かめた
+    js("cm.setValue(%s)" % json.dumps(FONT_DOCS['math']))
+    time.sleep(6)
+    out = os.path.join(tmp, "math.pdf")
+    r = api.print_save_pdf({**BASE, 'uri': src}, '', out)
+    data = open(out, 'rb').read()
+    check("数式の PDF に、KaTeX のフォントが埋め込まれる（数式が文字として出る）", (r['ok'], b'KaTeX_Main' in data, b'KaTeX_Math' in data), (True, True, True))
 
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False

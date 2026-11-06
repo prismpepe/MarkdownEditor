@@ -18,7 +18,7 @@ from pygments.util import ClassNotFound
 MAX_CHARS = 200_000          # これを超えるコードは色を付けない（巨大な貼り付けで、表示が固まらないように）
 
 # 別の部品が読み取るもの。色分けしない
-SKIP = {"mermaid", "vega-lite", "vegalite", "vega"}
+SKIP = {"mermaid", "vega-lite", "vegalite", "vega", "math"}
 
 # Pygments が知らない呼び名のうち、よく使われるもの → Pygments の名前
 ALIASES = {
