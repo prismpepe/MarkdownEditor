@@ -90,6 +90,33 @@ try {
     [IO.File]::WriteAllBytes($out, [Convert]::FromBase64String($shot.result.data))
     '{0}: {1:N0} KB' -f $out, ((Get-Item $out).Length / 1KB)
   }
+
+  # Figures: a four-backtick markdown block in docs\sample\*.md holds the SOURCE of a diagram (mermaid, vega-lite ...).
+  # Draw each one in the app (light) and save docs\images\sample-<language>.png, so that "source + image" always match.
+  Send $ws 'Emulation.setEmulatedMedia' @{ features = @(@{ name = 'prefers-color-scheme'; value = 'light' }) } | Out-Null
+  $bt3 = '`' * 3
+  $bt4 = '`' * 4
+  $pattern = '(?s)' + [regex]::Escape($bt4) + 'markdown\r?\n(.*?)\r?\n' + [regex]::Escape($bt4)
+  foreach ($f in Get-ChildItem (Join-Path $root 'docs\sample') -Filter *.md) {
+    $text = [IO.File]::ReadAllText($f.FullName, [Text.Encoding]::UTF8)
+    foreach ($m in [regex]::Matches($text, $pattern)) {
+      $inner = $m.Groups[1].Value
+      $lang = [regex]::Match($inner, '^' + [regex]::Escape($bt3) + '([A-Za-z0-9_-]+)').Groups[1].Value
+      if (-not $lang) { continue }
+      [IO.File]::WriteAllText((Join-Path $sample "fig_$lang.md"), $inner + "`n", (New-Object Text.UTF8Encoding($false)))
+      $figJs = ("${letter}:\fig_$lang.md") | ConvertTo-Json -Compress
+      Ev $ws "$open($figJs)" | Out-Null
+      if (-not (WaitFor $ws "document.querySelectorAll('$content .diagram svg').length >= 1" 40)) { throw "The figure ($lang) was not drawn." }
+      Start-Sleep -Milliseconds 800
+      $rect = (Ev $ws "(() => { const e = document.querySelector('$content .diagram svg'); e.scrollIntoView({block: 'center'}); const r = e.getBoundingClientRect(); return JSON.stringify({x: r.x, y: r.y, w: r.width, h: r.height}); })()") | ConvertFrom-Json
+      $pad = 14
+      $clip = @{ x = [Math]::Max(0, $rect.x - $pad); y = [Math]::Max(0, $rect.y - $pad); width = $rect.w + 2 * $pad; height = $rect.h + 2 * $pad; scale = 1 }
+      $shot = Send $ws 'Page.captureScreenshot' @{ format = 'png'; clip = $clip }
+      $out = Join-Path $imgDir "sample-$lang.png"
+      [IO.File]::WriteAllBytes($out, [Convert]::FromBase64String($shot.result.data))
+      '{0}: {1:N0} KB' -f $out, ((Get-Item $out).Length / 1KB)
+    }
+  }
 }
 finally {
   Get-Process $app -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
