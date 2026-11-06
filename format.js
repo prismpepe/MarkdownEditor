@@ -141,7 +141,7 @@ const MdFormat = (() => {
     class: ['クラス図', 'classDiagram\n  class 動物 {\n    +名前\n    +鳴く()\n  }\n  動物 <|-- 犬'],
     gantt: ['ガントチャート', 'gantt\n  title スケジュール\n  dateFormat YYYY-MM-DD\n  section 準備\n  調査 :a1, 2026-10-01, 7d\n  設計 :after a1, 5d'],
     pie: ['円グラフ', 'pie title 内訳\n  "項目A" : 40\n  "項目B" : 30\n  "項目C" : 30'],
-    xychart: ['XYチャート（棒グラフ・折れ線）', 'xychart-beta\n  title "月別の売上"\n  x-axis ["1月", "2月", "3月", "4月", "5月"]\n  y-axis "売上（万円）" 0 --> 100\n  bar [30, 45, 60, 55, 80]\n  line [30, 45, 60, 55, 80]'],
+    xychart: ['XYチャート', 'xychart-beta\n  title "月別の売上"\n  x-axis ["1月", "2月", "3月", "4月", "5月"]\n  y-axis "売上（万円）" 0 --> 100\n  bar [30, 45, 60, 55, 80]\n  line [30, 45, 60, 55, 80]'],
     radar: ['レーダーチャート', 'radar-beta\n  title 能力の比較\n  axis a["国語"], b["数学"], c["英語"], d["理科"], e["社会"]\n  curve s1["Aさん"]{80, 65, 70, 90, 55}\n  curve s2["Bさん"]{60, 85, 75, 70, 80}\n  max 100\n  min 0'],
     quadrant: ['象限図', 'quadrantChart\n  title 優先度マトリクス\n  x-axis 低コスト --> 高コスト\n  y-axis 低効果 --> 高効果\n  quadrant-1 すぐやる\n  quadrant-2 計画する\n  quadrant-3 後回し\n  quadrant-4 見直す\n  施策A: [0.3, 0.8]\n  施策B: [0.7, 0.6]\n  施策C: [0.2, 0.2]'],
     mindmap: ['マインドマップ', 'mindmap\n  root((テーマ))\n    項目A\n      詳細1\n      詳細2\n    項目B\n      詳細3'],
@@ -158,17 +158,17 @@ const MdFormat = (() => {
   // Vega-Lite のグラフのひな形（```vega-lite のコードブロックとして入れる）
   const rows = (a, b) => ({ values: a.map((x, i) => ({ [b[0]]: x, [b[1]]: b[2][i] })) });
   const CHARTS = {
-    bar: ['棒グラフ（Vega-Lite）', {
+    bar: ['棒グラフ', {
       data: rows(['A', 'B', 'C', 'D'], ['category', 'value', [28, 55, 43, 91]]),
       mark: 'bar',
       encoding: { x: { field: 'category', type: 'nominal' }, y: { field: 'value', type: 'quantitative' } },
     }],
-    line: ['折れ線グラフ（Vega-Lite）', {
+    line: ['折れ線グラフ', {
       data: rows(['1月', '2月', '3月', '4月', '5月'], ['month', 'value', [12, 19, 15, 25, 32]]),
       mark: { type: 'line', point: true },
       encoding: { x: { field: 'month', type: 'ordinal', sort: null }, y: { field: 'value', type: 'quantitative' } },
     }],
-    csv: ['CSV ファイルから（Vega-Lite）', {
+    csv: ['CSV から', {
       data: { url: 'data/sample.csv' },
       mark: 'bar',
       encoding: { x: { field: 'category', type: 'nominal' }, y: { field: 'value', type: 'quantitative' } },
@@ -181,10 +181,10 @@ const MdFormat = (() => {
 
   // 数式（TeX）のひな形。```math のブロック（独立した行の数式）で入れ、式の部分を選ぶので、そのまま打ち替えられる
   const MATH = {
-    block: ['独立した行の数式（```math）', 'E = mc^2'],
-    inline: ['文中の数式（$…$）', null],
+    block: ['数式ブロック', 'E = mc^2'],
+    inline: ['文中の数式', null],
     frac: ['分数', '\\frac{a}{b}'],
-    quadratic: ['解の公式（根号）', 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}'],
+    quadratic: ['解の公式', 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}'],
     sum: ['総和', '\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}'],
     integral: ['積分', '\\int_0^1 x^2 \\, dx = \\frac{1}{3}'],
     matrix: ['行列', '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}'],

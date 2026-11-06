@@ -115,7 +115,7 @@ def drive():
 
     # ---- 画像を、パスで参照する書き方で挿入する（選択欄から）
     check("画像の挿入の選択肢", js("[...document.getElementById('fImage').options].map(o => o.textContent)"),
-          ['画像の挿入…', '画像を選んで挿入（パスで参照）', '画像を選んで挿入（Base64 で埋め込み）', '文書内の画像をすべて Base64 に変換', 'Base64 の画像をファイルに戻す'])
+          ['画像の挿入…', '画像をパスで挿入', '画像を Base64 で挿入', '全画像を Base64 に変換', 'Base64 画像をファイルに復元'])
 
     def pick(option):
         js("document.getElementById('fImage').value = %s; document.getElementById('fImage').dispatchEvent(new Event('change'))" % json.dumps(option))

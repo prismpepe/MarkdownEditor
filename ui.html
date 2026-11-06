@@ -369,26 +369,27 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               <button data-f="rule" title="区切り線">―</button>
             </span>
           </span>
-          <span class="fgroup" role="group" aria-label="画像・表・データ">
-            <span class="glabel">画像・表・データ</span>
+          <span class="fgroup" role="group" aria-label="画像・表・データ・目次">
+            <span class="glabel">画像・表・データ・目次</span>
             <span class="gbtns">
               <button data-f="image" title="画像 (![説明](パス) の書き方を、カーソルの位置に入れる)">🖼 画像</button>
               <select id="fImage" title="画像ファイルを選んで、文書へ入れる。パスで参照する書き方（画像ファイルが別に要る）と、Base64 で文書の中へ埋め込む書き方（Markdown ファイル1つで配布できる）を選べる">
                 <option value="">画像の挿入…</option>
-                <option value="ref">画像を選んで挿入（パスで参照）</option>
-                <option value="pick">画像を選んで挿入（Base64 で埋め込み）</option>
-                <option value="all">文書内の画像をすべて Base64 に変換</option>
-                <option value="back">Base64 の画像をファイルに戻す</option>
+                <option value="ref">画像をパスで挿入</option>
+                <option value="pick">画像を Base64 で挿入</option>
+                <option value="all">全画像を Base64 に変換</option>
+                <option value="back">Base64 画像をファイルに復元</option>
               </select>
               <button data-f="table" title="表 (空の表のひな形を、カーソルの位置に入れる)">▦ 表</button>
               <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
+              <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
             </span>
           </span>
-          <span class="fgroup" role="group" aria-label="目次・チャート・数式">
-            <span class="glabel">目次・チャート・数式</span>
+          <span class="fgroup" role="group" aria-label="チャート・数式">
+            <span class="glabel">チャート・数式</span>
             <span class="gbtns">
-              <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
-              <select id="fDiagram" title="Mermaid の図、Vega-Lite のグラフ（チャート）、数式（TeX）を、ひな形から挿入する"><option value="">チャート・数式を挿入…</option></select>
+              <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
+              <select id="fMath" title="数式（TeX）を挿入する。文字を選んでいれば、その文字を数式にする"><option value="">数式を挿入…</option></select>
             </span>
           </span>
           <span class="fgroup" role="group" aria-label="編集">
@@ -1468,16 +1469,20 @@ function setupFormatBar() {
   });
   setupEditBar();
   $('fHead').onchange = () => { const v = $('fHead').value; $('fHead').value = ''; if (v !== '') runFormat(() => MdFormat.heading(cm, +v)); };
-  // 種類ごとに分けて並べる（編集バーの幅は、いちばん長い項目で決まるので、名前を長くしても、段の数は変わらない）
+  // チャートの選択欄は、種類ごとに分けて並べ、種類の間を横線（hr）で区切る
   const addGroup = (label, items, prefix) => {
-    if ($('fDiagram').querySelector('optgroup')) $('fDiagram').appendChild(document.createElement('hr'));   // 種類の間を、横線で区切る
+    if ($('fDiagram').querySelector('optgroup')) $('fDiagram').appendChild(document.createElement('hr'));
     const g = document.createElement('optgroup'); g.label = label;
     for (const [k, v] of Object.entries(items)) g.appendChild(new Option(v[0], prefix + k));
     $('fDiagram').appendChild(g);
   };
   addGroup('Mermaid の図', MdFormat.DIAGRAMS, '');
   addGroup('Vega-Lite のグラフ', MdFormat.CHARTS, 'chart:');
-  addGroup('数式（KaTeX）', MdFormat.MATH, 'math:');
+  // 数式の選択欄は、「枠を入れる」2つと、ひな形を、横線で分ける
+  Object.entries(MdFormat.MATH).forEach(([k, m], i) => {
+    if (i === 2) $('fMath').appendChild(document.createElement('hr'));
+    $('fMath').appendChild(new Option(m[0], k));
+  });
   $('fImage').onchange = () => {
     const v = $('fImage').value; $('fImage').value = ''; if (!v || doc.readonly) return;
     ({ ref: insertImageByPath, pick: embedPickImage, all: embedAllImages, back: embedBackToFiles })[v]();
@@ -1488,7 +1493,8 @@ function setupFormatBar() {
   for (const id of ['tFmt', 'tSource', 'tDelim', 'tHead', 'tAlign', 'tNum', 'tEmpty', 'tFence', 'tBorder']) $(id).addEventListener('change', refreshTablePreview);
   $('tClip').onclick = tableFromClipboard; $('tFile').onclick = tableFromFile;
   $('tInsert').onclick = tableInsert; $('tSave').onclick = tableSaveJson; $('tClose').onclick = closeTableDlg;
-  $('fDiagram').onchange = () => { const v = $('fDiagram').value; $('fDiagram').value = ''; if (!v) return; runFormat(() => v.startsWith('chart:') ? MdFormat.chart(cm, v.slice(6)) : v.startsWith('math:') ? MdFormat.math(cm, v.slice(5)) : MdFormat.diagram(cm, v)); };
+  $('fDiagram').onchange = () => { const v = $('fDiagram').value; $('fDiagram').value = ''; if (!v) return; runFormat(() => v.startsWith('chart:') ? MdFormat.chart(cm, v.slice(6)) : MdFormat.diagram(cm, v)); };
+  $('fMath').onchange = () => { const v = $('fMath').value; $('fMath').value = ''; if (!v) return; runFormat(() => MdFormat.math(cm, v)); };
 }
 
 // ============================================================ 検索・置換・コピー・貼り付け

@@ -119,11 +119,11 @@ def drive():
     check("数式を書き換えると、プレビューも変わる", (before != after, 'y' in after and '3' in after), (True, True))
 
 
-    # 「チャート・数式を挿入…」のひな形は、すべて TeX として正しい（挿入して、組んで、エラーが出ない）
+    # 「数式を挿入…」のひな形は、すべて TeX として正しい（挿入して、組んで、エラーが出ない）
     keys = js("Object.keys(MdFormat.MATH)")
     bad = []
     for k in keys:
-        js("cm.setValue(''); (() => { const d = document.getElementById('fDiagram'); d.value = %s; d.dispatchEvent(new Event('change')); })()" % json.dumps('math:' + k))
+        js("cm.setValue(''); (() => { const d = document.getElementById('fMath'); d.value = %s; d.dispatchEvent(new Event('change')); })()" % json.dumps(k))
         wait("document.querySelectorAll('#preview .math.typeset').length >= 1", 15)
         time.sleep(.4)
         n_math, n_err, n_katex = count('#preview .math'), count('#preview .math-error'), count('#preview .math .katex')
