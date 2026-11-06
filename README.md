@@ -1,5 +1,7 @@
 # Markdown エディタ
 
+![MarkdownEditor](docs/MarkdownEditor.gif)
+
 Windows 11 向けの Markdown 編集アプリです。左で書き、右でリアルタイムにプレビューします。書いた文書は、そのまま印刷・PDF 保存できます。
 
 Python と pywebview で作り、描画は Microsoft Edge の WebView2 を使います。編集欄は CodeMirror 5 です。
