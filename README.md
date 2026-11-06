@@ -1,6 +1,9 @@
 # Markdown エディタ
 
-![MarkdownEditor](docs/MarkdownEditor.gif)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/MarkdownEditor-dark.png">
+  <img alt="Markdown エディタの画面" src="docs/images/MarkdownEditor-light.png">
+</picture>
 
 Windows 11 向けの Markdown 編集アプリです。左で書き、右でリアルタイムにプレビューします。書いた文書は、そのまま印刷・PDF 保存できます。
 
@@ -47,6 +50,7 @@ python -m venv .venv
 | 画面を実際に動かす確認 | `.venv\Scripts\python tests\gui_check_find.py`（`tests\gui_check_*.py`。設定は一時フォルダーに向ける） |
 | exe を作る（テスト → PyInstaller） | `.\build.cmd` |
 | 配布用 zip を作る | `python tools\make_release.py` |
+| README のスクリーンショットを撮り直す（先に `.\build.cmd`） | `pwsh .\tools\make_screenshots.ps1`（`docs\sample` のサンプル文書を、ライトとダークで撮る） |
 
 主なファイル:
 
