@@ -61,5 +61,6 @@ python -m venv .venv
 
 ## 補足
 
-- このリポジトリにはライセンスを設定していません。同梱している外部ライブラリは、それぞれのライセンスに従います。
+- ライセンスは [MIT](LICENSE) です（Copyright (c) 2026 Hidetoshi 'PePe' Amemiya）。
+- 同梱している第三者のライブラリ（Mermaid、Vega、CodeMirror、iconify の `logos`、Python など）のライセンス表示は、[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) にあります。配布 zip にも同じものを入れています。
 - 姉妹アプリの Markdown ビューアとは、`autolink.py`、`cjk_emphasis.py`、`sanitize.py`、`highlight.py` などを、同じ内容で持っています。

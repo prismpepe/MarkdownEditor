@@ -19,6 +19,8 @@ FILES = [
     ("docs/簡易仕様書.md", "簡易仕様書.md"),
     ("登録.cmd", "登録.cmd"),
     ("登録解除.cmd", "登録解除.cmd"),
+    ("LICENSE", "LICENSE"),
+    ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md"),
 ]
 
 
