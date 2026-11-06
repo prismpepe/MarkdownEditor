@@ -179,5 +179,37 @@ const MdFormat = (() => {
     if (c) insertBlock(cm, '```vega-lite\n' + JSON.stringify(c[1], null, 2) + '\n```');
   }
 
-  return { inline, heading, linePrefix, codeBlock, link, image, table, rule, diagram, DIAGRAMS, chart, CHARTS };
+  // 数式（TeX）のひな形。```math のブロック（独立した行の数式）で入れ、式の部分を選ぶので、そのまま打ち替えられる
+  const MATH = {
+    block: ['独立した行の数式（```math）', 'E = mc^2'],
+    inline: ['文中の数式（$…$）', null],
+    frac: ['分数', '\\frac{a}{b}'],
+    quadratic: ['解の公式（根号）', 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}'],
+    sum: ['総和', '\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}'],
+    integral: ['積分', '\\int_0^1 x^2 \\, dx = \\frac{1}{3}'],
+    matrix: ['行列', '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}'],
+    cases: ['場合分け', 'f(x) = \\begin{cases} x & (x \\ge 0) \\\\ -x & (x < 0) \\end{cases}'],
+    ja: ['日本語を含む式', 'P(A) = \\frac{\\text{事象Aの数}}{\\text{全体の数}}'],
+  };
+  function math(cm, kind) {
+    const m = MATH[kind];
+    if (!m) return;
+    const sel = cm.getSelection();
+    if (kind === 'inline') {                                   // 選んだ文字を $ ではさむ（選ばなければ、ひな形を入れて、式を選ぶ）
+      if (sel.includes('\n')) return;                          // 文中の数式は、1行
+      const from = cm.getCursor('from'), text = sel || 'E=mc^2';
+      cm.replaceSelection('$' + text + '$');
+      cm.setSelection({ line: from.line, ch: from.ch + 1 }, { line: from.line, ch: from.ch + 1 + text.length });
+      return;
+    }
+    if (kind === 'block' && sel) {                             // 選んだ行を、math ブロックで囲む
+      const [first, last] = lineRange(cm), lines = [];
+      for (let i = first; i <= last; i++) lines.push(cm.getLine(i));
+      replaceLines(cm, first, last, ['```math', ...lines, '```']);
+      return;
+    }
+    insertBlock(cm, '```math\n' + m[1] + '\n```', 8, 8 + m[1].length);
+  }
+
+  return { inline, heading, linePrefix, codeBlock, link, image, table, rule, diagram, DIAGRAMS, chart, CHARTS, math, MATH };
 })();

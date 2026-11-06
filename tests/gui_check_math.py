@@ -118,6 +118,19 @@ def drive():
     after = js("document.querySelector('#preview .katex-display').textContent")
     check("数式を書き換えると、プレビューも変わる", (before != after, 'y' in after and '3' in after), (True, True))
 
+
+    # 「チャート・数式を挿入…」のひな形は、すべて TeX として正しい（挿入して、組んで、エラーが出ない）
+    keys = js("Object.keys(MdFormat.MATH)")
+    bad = []
+    for k in keys:
+        js("cm.setValue(''); (() => { const d = document.getElementById('fDiagram'); d.value = %s; d.dispatchEvent(new Event('change')); })()" % json.dumps('math:' + k))
+        wait("document.querySelectorAll('#preview .math.typeset').length >= 1", 15)
+        time.sleep(.4)
+        n_math, n_err, n_katex = count('#preview .math'), count('#preview .math-error'), count('#preview .math .katex')
+        if n_math != 1 or n_err or n_katex != 1:
+            bad.append((k, n_math, n_err, n_katex))
+    check("数式のひな形（%d 種類）は、すべて、組まれて、エラーが出ない" % len(keys), bad, [])
+
     # 数式のない文書
     js("cm.setValue(%s)" % json.dumps("ふつうの文章です。\n"))
     time.sleep(1)

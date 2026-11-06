@@ -384,11 +384,11 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
             </span>
           </span>
-          <span class="fgroup" role="group" aria-label="目次・チャート">
-            <span class="glabel">目次・チャート</span>
+          <span class="fgroup" role="group" aria-label="目次・チャート・数式">
+            <span class="glabel">目次・チャート・数式</span>
             <span class="gbtns">
               <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
-              <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
+              <select id="fDiagram" title="Mermaid の図、Vega-Lite のグラフ（チャート）、数式（TeX）を、ひな形から挿入する"><option value="">チャート・数式を挿入…</option></select>
             </span>
           </span>
           <span class="fgroup" role="group" aria-label="編集">
@@ -1468,8 +1468,16 @@ function setupFormatBar() {
   });
   setupEditBar();
   $('fHead').onchange = () => { const v = $('fHead').value; $('fHead').value = ''; if (v !== '') runFormat(() => MdFormat.heading(cm, +v)); };
-  for (const [k, d] of Object.entries(MdFormat.DIAGRAMS)) $('fDiagram').add(new Option(d[0], k));
-  for (const [k, c] of Object.entries(MdFormat.CHARTS)) $('fDiagram').add(new Option(c[0], 'chart:' + k));
+  // 種類ごとに分けて並べる（編集バーの幅は、いちばん長い項目で決まるので、名前を長くしても、段の数は変わらない）
+  const addGroup = (label, items, prefix) => {
+    if ($('fDiagram').querySelector('optgroup')) $('fDiagram').appendChild(document.createElement('hr'));   // 種類の間を、横線で区切る
+    const g = document.createElement('optgroup'); g.label = label;
+    for (const [k, v] of Object.entries(items)) g.appendChild(new Option(v[0], prefix + k));
+    $('fDiagram').appendChild(g);
+  };
+  addGroup('Mermaid の図', MdFormat.DIAGRAMS, '');
+  addGroup('Vega-Lite のグラフ', MdFormat.CHARTS, 'chart:');
+  addGroup('数式（KaTeX）', MdFormat.MATH, 'math:');
   $('fImage').onchange = () => {
     const v = $('fImage').value; $('fImage').value = ''; if (!v || doc.readonly) return;
     ({ ref: insertImageByPath, pick: embedPickImage, all: embedAllImages, back: embedBackToFiles })[v]();
@@ -1480,7 +1488,7 @@ function setupFormatBar() {
   for (const id of ['tFmt', 'tSource', 'tDelim', 'tHead', 'tAlign', 'tNum', 'tEmpty', 'tFence', 'tBorder']) $(id).addEventListener('change', refreshTablePreview);
   $('tClip').onclick = tableFromClipboard; $('tFile').onclick = tableFromFile;
   $('tInsert').onclick = tableInsert; $('tSave').onclick = tableSaveJson; $('tClose').onclick = closeTableDlg;
-  $('fDiagram').onchange = () => { const v = $('fDiagram').value; $('fDiagram').value = ''; if (!v) return; runFormat(() => v.startsWith('chart:') ? MdFormat.chart(cm, v.slice(6)) : MdFormat.diagram(cm, v)); };
+  $('fDiagram').onchange = () => { const v = $('fDiagram').value; $('fDiagram').value = ''; if (!v) return; runFormat(() => v.startsWith('chart:') ? MdFormat.chart(cm, v.slice(6)) : v.startsWith('math:') ? MdFormat.math(cm, v.slice(5)) : MdFormat.diagram(cm, v)); };
 }
 
 // ============================================================ 検索・置換・コピー・貼り付け
