@@ -34,7 +34,7 @@ class OPENFILENAMEW(ctypes.Structure):
     ]
 
 
-def pick_file(initial_dir=None):
+def pick_file(initial_dir=None, title="Markdown ファイルを開く"):
     buf = ctypes.create_unicode_buffer(32768)
     filt = ctypes.create_unicode_buffer(
         "Markdown (*.md;*.markdown)\0*.md;*.markdown;*.mdown;*.mkd\0"
@@ -48,7 +48,7 @@ def pick_file(initial_dir=None):
     ofn.lpstrFile = ctypes.cast(buf, wintypes.LPWSTR)
     ofn.nMaxFile = len(buf)
     ofn.lpstrInitialDir = initial_dir
-    ofn.lpstrTitle = "Markdown ファイルを開く"
+    ofn.lpstrTitle = title
     ofn.Flags = (OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER
                  | OFN_NOCHANGEDIR)
     if comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):

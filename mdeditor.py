@@ -30,6 +30,7 @@ import highlight
 import imgembed
 import mathtex
 import tabular
+import templating
 import toc
 import uiprefs
 import filemodel
@@ -38,7 +39,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.14.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.15.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -234,6 +235,7 @@ class Api:
         self._md = make_renderer()
         self._mermaid = None
         self._vendor = {}
+        self._picked_templates = set()      # 利用者が「ファイルを選ぶ」で選んだテンプレート（正規化したパス）
         self._doc_dir = None      # いま編集中の文書のフォルダー（Vega-Lite のデータ読み込みの基準）
         self._start_path = start_path
         self._dirty = False
@@ -464,6 +466,58 @@ class Api:
             return {"error": f"開けません: {e}"}
         doc["stamp"] = self._stamp_out(doc.get("stamp"))
         return {"error": None, "doc": doc}
+
+    # --- テンプレートから新規作成（templating.py）。画面は、結果の本文を受け取って、新しい「無題」の文書にする ---
+    def template_folder(self):
+        """自分のテンプレート（.md）を置く場所。"""
+        return os.path.join(data_dir(), "templates")
+
+    def list_templates(self):
+        items = templating.builtin_templates() + templating.user_templates(self.template_folder())
+        return {"folder": self.template_folder(), "items": items}
+
+    def get_template(self, tid):
+        """テンプレートの本文と、利用者に聞く欄を返す。選べるのは、組み込みと、自分のテンプレートの場所の中のファイルと、
+        利用者が「ファイルを選ぶ」で選んだファイルだけ（画面から、任意のパスを読ませない）。"""
+        try:
+            kind, _, ref = str(tid).partition(":")
+            if kind == "builtin" and ref in templating.BUILTIN:
+                text, name = templating.BUILTIN[ref], ref
+            elif kind == "file" and (templating.inside(self.template_folder(), ref)
+                                     or os.path.normcase(os.path.abspath(ref)) in self._picked_templates):
+                if os.path.getsize(ref) > templating.MAX_BYTES:
+                    return {"error": "大きすぎるファイルは、テンプレートにできません（1MB まで）"}
+                doc = filemodel.read_document(ref)
+                if doc.get("readonly"):
+                    return {"error": "文字コードを判定できないファイルは、テンプレートにできません"}
+                text, name = doc["text"], os.path.splitext(os.path.basename(ref))[0]
+            else:
+                return {"error": "このテンプレートは使えません"}
+        except OSError as e:
+            return {"error": f"読み込めません: {e}"}
+        return {"error": None, "name": name, "text": text, "fields": templating.fields(text)}
+
+    def render_template(self, text, values):
+        """欄を値に置き換えた本文。組み込みの欄（日付など）は、いまの日時で入る。"""
+        return templating.render(str(text), {str(k): v for k, v in (values or {}).items()})
+
+    def pick_template_file(self):
+        """テンプレートにするファイルを選ぶ（選んだファイルは、このあと get_template で読める）。"""
+        path = dialogs.pick_file(self._initial_dir(None), "テンプレートにする Markdown ファイルを選ぶ")
+        if not path:
+            return None
+        self._picked_templates.add(os.path.normcase(os.path.abspath(path)))
+        return "file:" + path
+
+    def open_template_folder(self):
+        """自分のテンプレートの場所を、エクスプローラーで開く（無ければ作る）。"""
+        folder = self.template_folder()
+        try:
+            os.makedirs(folder, exist_ok=True)
+            os.startfile(folder)
+        except OSError as e:
+            return {"error": f"開けません: {e}"}
+        return {"error": None, "folder": folder}
 
     def check_changed(self, path):
         """読み込んだあとにファイルが変わったかを確かめるための、現在のスタンプ。"""

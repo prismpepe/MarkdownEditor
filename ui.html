@@ -234,6 +234,26 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #tPrev { margin: 0; width: 100%; box-sizing: border-box; padding: 8px 10px; background: var(--code); border: 1px solid var(--border); border-radius: 6px;
   min-height: 3em; max-height: 190px; overflow: auto; font: 12px/1.4 Consolas, "BIZ UDGothic", monospace; white-space: pre; }
 #tdlg .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
+/* テンプレートから新規作成のダイアログ（左: 一覧、右: 入力欄とプレビュー） */
+#mveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+#mdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; width: min(900px, 94vw); max-height: 92vh; overflow: auto; font: 14px/1.5 "Yu Gothic UI", "Segoe UI", sans-serif; }
+#mdlg h3 { margin: 0 0 6px; }
+#mdlg .hint { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+#mBody { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; }
+#mLeft { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#mList { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+#mdlg .trow { display: flex; flex-wrap: wrap; gap: 6px; }
+#mRight { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#mFields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+#mFields .mnone { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+#mFields input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; min-width: 0; }
+#mPrev { margin: 0; padding: 8px 10px; background: var(--code); border: 1px solid var(--border); border-radius: 6px; min-height: 8em; max-height: 330px;
+  overflow: auto; font: 12px/1.45 Consolas, "BIZ UDGothic", monospace; white-space: pre-wrap; word-break: break-all; }
+#mdlg .btns { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+#mInfo { margin-right: auto; font-size: 12px; color: var(--muted); }
+#mInfo.bad { color: var(--danger, #b00); }
+@media (max-width: 640px) { #mBody { grid-template-columns: 1fr; } }
 #fveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
 #fveil[hidden] { display: none; }
 #fdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
@@ -299,6 +319,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 <body>
 <div id="toolbar">
   <button id="bNew" title="Ctrl+N">📝 新規</button>
+  <button id="bTemplate" title="テンプレートから、新しい文書を作る（欄を埋めると、変数のないふつうの Markdown ができる）">📋 テンプレート</button>
   <button id="bFolder" title="Ctrl+Shift+O">📁 フォルダーを開く</button>
   <button id="bOpen" title="Ctrl+O">📄 ファイルを開く</button>
   <span class="sep"></span>
@@ -442,6 +463,23 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   </div>
 </div>
 <div id="ctx" hidden></div>
+<div id="mveil" hidden>
+  <div id="mdlg" role="dialog" aria-label="テンプレートから新規作成">
+    <h3>テンプレートから新規作成</h3>
+    <p class="hint">テンプレートを選び、欄を埋めると、新しい「無題」の文書ができます。できるのは、欄のない、ふつうの Markdown です（どのツールで開いても、同じに見えます）。</p>
+    <div id="mBody">
+      <div id="mLeft">
+        <select id="mList" size="12" aria-label="テンプレートの一覧"></select>
+        <div class="trow"><button id="mPick">ファイルを選ぶ…</button><button id="mOpenDir">テンプレートの場所を開く</button></div>
+      </div>
+      <div id="mRight">
+        <div id="mFields"></div>
+        <pre id="mPrev"></pre>
+      </div>
+    </div>
+    <div class="btns"><span id="mInfo"></span><button id="mCreate" class="primary" disabled>この内容で新規作成</button><button id="mClose">閉じる</button></div>
+  </div>
+</div>
 <div id="tveil" hidden>
   <div id="tdlg" role="dialog" aria-label="表・データの取り込み">
     <h3>表・データの取り込み</h3>
@@ -1228,7 +1266,7 @@ document.addEventListener('dragover', e => e.preventDefault());
 
 // ウィンドウへのドロップ。Python（filedrop.py）が、開くと決まった対象（Markdown ファイル1つ／フォルダー1つ）だけを渡してくる
 async function handleDrop(kind, path) {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen()) return;
   if (kind === 'folder') await switchFolder(path); else await openPath(path);
 }
 
@@ -1339,6 +1377,104 @@ async function tocDialog() {
   status(`目次を${r.updated ? '更新' : '挿入'}しました（${r.count} 項目${r.added_ids ? `。HTML の見出し ${r.added_ids} か所に id を追加` : ''}。元に戻すには Ctrl+Z）`, false, 7000);
 }
 
+// ============================================================ テンプレートから新規作成（templating.py）
+const tmplDlgOpen = () => !$('mveil').hidden;
+let tmpl = null, tmplSeq = 0, tmplTimer = null, tmplPicked = [];     // 選んでいるテンプレート / プレビューの順番 / 「ファイルを選ぶ」で選んだもの
+const tmplValues = () => Object.fromEntries([...$('mFields').querySelectorAll('input')].map(i => [i.dataset.name, i.value]));
+
+function tmplInfo(text, bad) { $('mInfo').textContent = text || ''; $('mInfo').classList.toggle('bad', !!bad); }
+
+async function fillTemplateList(keepId) {
+  const r = await api.list_templates();
+  const list = $('mList'); list.innerHTML = '';
+  const group = (label, items, empty) => {
+    const g = document.createElement('optgroup'); g.label = label;
+    for (const it of items) g.appendChild(new Option(it.name, it.id));
+    if (!items.length && empty) { const o = new Option(empty, ''); o.disabled = true; g.appendChild(o); }
+    list.appendChild(g);
+  };
+  group('組み込み', r.items.filter(i => i.kind === 'builtin'));
+  group('自分のテンプレート', r.items.filter(i => i.kind === 'user'), '（まだありません）');
+  if (tmplPicked.length) group('選んだファイル', tmplPicked);
+  $('mdlg').dataset.folder = r.folder;
+  const want = keepId && [...list.options].find(o => o.value === keepId);
+  if (want) list.value = keepId;
+  return !!want;
+}
+
+async function openTemplateDlg() {
+  if (!api) return;
+  tmpl = null; $('mFields').innerHTML = ''; $('mPrev').textContent = ''; $('mCreate').disabled = true; tmplInfo('');
+  await fillTemplateList();
+  $('mveil').hidden = false;
+  const first = $('mList').querySelector('option:not(:disabled)');
+  if (first) { $('mList').value = first.value; await chooseTemplate(first.value); }
+  $('mList').focus();
+}
+function closeTemplateDlg() { $('mveil').hidden = true; cm.focus(); }
+
+async function chooseTemplate(id) {
+  const r = await api.get_template(id);
+  if (r.error) { tmpl = null; $('mFields').innerHTML = ''; $('mPrev').textContent = ''; $('mCreate').disabled = true; tmplInfo(r.error, true); return; }
+  tmpl = { id, ...r };
+  const box = $('mFields'); box.innerHTML = '';
+  if (!r.fields.length) {
+    const p = document.createElement('div'); p.className = 'mnone'; p.textContent = '入力する欄はありません（日付などは、自動で入ります）'; box.appendChild(p);
+  }
+  for (const f of r.fields) {
+    const label = document.createElement('label'); label.textContent = f.name; label.htmlFor = 'mf_' + f.name;
+    const input = document.createElement('input'); input.type = 'text'; input.id = 'mf_' + f.name; input.dataset.name = f.name; input.value = f.default;
+    input.placeholder = '（空のままでもかまいません）';
+    input.addEventListener('input', refreshTemplatePreview);
+    box.append(label, input);
+  }
+  $('mCreate').disabled = false;
+  tmplInfo(r.fields.length ? '「' + r.name + '」: 入れる欄が ' + r.fields.length + ' つあります。日付・曜日などは、自動で入ります' : '');
+  await refreshTemplatePreviewNow();
+}
+async function refreshTemplatePreviewNow() {
+  if (!tmpl) return;
+  const seq = ++tmplSeq;
+  const text = await api.render_template(tmpl.text, tmplValues());
+  if (seq === tmplSeq) $('mPrev').textContent = text;
+}
+function refreshTemplatePreview() { clearTimeout(tmplTimer); tmplTimer = setTimeout(refreshTemplatePreviewNow, 120); }
+
+async function createFromTemplate() {
+  if (!tmpl) return;
+  const name = tmpl.name;
+  const text = await api.render_template(tmpl.text, tmplValues());
+  // 開いている文書に、保存していない変更があれば、先に確かめる。確認のダイアログは、このダイアログの下に隠れてしまうので、
+  // 確認の間だけ、このダイアログを隠す（取り消したら、入力した内容のまま戻す）
+  $('mveil').hidden = true;
+  if (!await confirmDiscard()) { $('mveil').hidden = false; $('mCreate').focus(); return; }
+  closeTemplateDlg();
+  resetToBlank();                                         // 空の「無題」にして、本文を入れる（入れた分は、元に戻せる。保存するまで、ファイルは無い）
+  cm.replaceRange(text, { line: 0, ch: 0 });
+  cm.setCursor({ line: 0, ch: 0 }); cm.scrollTo(0, 0); cm.focus();
+  status('テンプレート「' + name + '」から、新しい文書を作りました。保存すると、ファイルになります', false, 7000);
+}
+
+$('bTemplate').onclick = openTemplateDlg;
+$('mList').onchange = () => { if ($('mList').value) chooseTemplate($('mList').value); };
+$('mCreate').onclick = createFromTemplate;
+$('mClose').onclick = closeTemplateDlg;
+$('mPick').onclick = async () => {
+  const id = await api.pick_template_file();
+  if (!id) return;
+  if (!tmplPicked.some(t => t.id === id)) tmplPicked.push({ id, name: id.slice(5).split('\\').pop().replace(/\.[^.]*$/, '') });
+  await fillTemplateList(id);
+  await chooseTemplate(id);
+};
+$('mOpenDir').onclick = async () => {
+  const r = await api.open_template_folder();
+  tmplInfo(r.error ? r.error : 'テンプレートの場所を開きました。.md を置くと、一覧に出ます（このダイアログへ戻ると、一覧を更新します）', !!r.error);
+};
+$('mdlg').addEventListener('keydown', e => {                    // 入力欄で Enter を押すと、作成する
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !$('mCreate').disabled) { e.preventDefault(); createFromTemplate(); }
+});
+window.addEventListener('focus', () => { if (tmplDlgOpen()) fillTemplateList(tmpl && tmpl.id); });   // 場所へ .md を置いて戻ったら、一覧を更新する
+
 // ============================================================ 表・データの取り込み（Excel のセル・CSV → Markdown の表・JSON）
 const tableDlgOpen = () => !$('tveil').hidden;
 const TABLE_DEFAULT = { fmt: 'md', source: 'auto', delim: 'auto', header: true, align: 'auto', numbers: true, empty: 'null', fence: false, border: false };
@@ -1414,6 +1550,7 @@ async function tableSaveJson() {
 }
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && tableDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTableDlg(); }
+  if (e.key === 'Escape' && tmplDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTemplateDlg(); }
 }, true);
 
 // ============================================================ 表示の切り替え・幅
@@ -1745,7 +1882,7 @@ window.addEventListener('resize', () => { cm && cm.refresh(); if (!fitMode) retu
 window.addEventListener('focus', () => { syncList(); checkExternal(); });
 
 document.addEventListener('keydown', e => {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen()) return;
   const k = e.key.toLowerCase(), c = e.ctrlKey;
   const inEditor = cm && cm.hasFocus();
   if (e.key === 'Escape') hideCtx();
