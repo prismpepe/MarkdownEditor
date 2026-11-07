@@ -1,4 +1,4 @@
-"""Markdown エディタ（Windows）。左で書き、右でリアルタイムにプレビューする。
+"""Handy Markdown Editor（Windows）。左で書き、右でリアルタイムにプレビューする。
 
 使い方:
     MarkdownEditor.exe [ファイル.md | フォルダー]
@@ -39,8 +39,8 @@ import printing
 import shellreg
 from sanitize import sanitize
 
-APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.16.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_NAME = "Handy Markdown Editor"
+APP_VERSION = "1.16.1"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -832,7 +832,7 @@ def message(text, title=APP_NAME):
 
 
 VERB = "MarkdownEditor"                    # フォルダーの右クリックのメニューのキー名（ほかのアプリと別にする）
-MENU_TEXT = "Markdown エディタで開く"
+MENU_TEXT = "Handy Markdown Editor で開く"
 
 
 def register_association():
@@ -843,10 +843,10 @@ def register_association():
     shellreg.notify_shell()
     message("登録しました。\n\n"
             "■ Markdown ファイル\n"
-            "右クリック →「プログラムから開く」→「別のプログラムを選択」で「Markdown エディタで開く」を選び、"
+            "右クリック →「プログラムから開く」→「別のプログラムを選択」で「Handy Markdown Editor で開く」を選び、"
             "「常に使う」を押すと、ダブルクリックで開けます。\n\n"
             "■ フォルダー\n"
-            "フォルダーを右クリックすると、「Markdown エディタで開く」が出ます。フォルダーを開いて、"
+            "フォルダーを右クリックすると、「Handy Markdown Editor で開く」が出ます。フォルダーを開いて、"
             "何もない場所を右クリックしても出ます。\n"
             "Windows 11 では、右クリックしてすぐ出るメニューではなく、「その他のオプションを表示」を押した先に出ます"
             "（Shift キーを押しながら右クリックしても出ます）。")

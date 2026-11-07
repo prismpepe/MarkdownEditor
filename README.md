@@ -1,8 +1,8 @@
-# Markdown エディタ
+# Handy Markdown Editor
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/MarkdownEditor-dark.png">
-  <img alt="Markdown エディタの画面" src="docs/images/MarkdownEditor-light.png">
+  <img alt="Handy Markdown Editor の画面" src="docs/images/MarkdownEditor-light.png">
 </picture>
 
 Windows 11 向けの Markdown 編集アプリです。左で書き、右でリアルタイムにプレビューします。書いた文書は、そのまま印刷・PDF 保存できます。

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Markdown エディタ v__APP_VERSION__</title>
+<title>Handy Markdown Editor v__APP_VERSION__</title>
 <style>
 /*VENDOR_CSS*/
 </style>
@@ -621,7 +621,7 @@ function updateDirty() {
   $('title').classList.toggle('dirty', d);
   $('bSave').classList.toggle('primary', d);       // 保存が必要なときだけ青くする
   api.set_dirty(d);
-  api.set_title((d ? '● ' : '') + baseName(doc.path) + ' - Markdown エディタ v__APP_VERSION__');
+  api.set_title((d ? '● ' : '') + baseName(doc.path) + ' - Handy Markdown Editor v__APP_VERSION__');
   updateEditButtons();
 }
 function updateCounters() {

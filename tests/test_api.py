@@ -168,7 +168,7 @@ def test_データの相対パスは文書のフォルダー配下の決まっ�
 def test_画面にバージョンが入る():
     html = mdeditor.build_html()
     assert "__APP_VERSION__" not in html
-    assert f"Markdown エディタ v{mdeditor.APP_VERSION}" in html
+    assert f"Handy Markdown Editor v{mdeditor.APP_VERSION}" in html
 
 
 @pytest.fixture
