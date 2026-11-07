@@ -16,7 +16,7 @@
   --border: #d0d7de; --accent: #0969da; --sel: #ddf4ff; --code: #f3f4f6;
   /* プレビューのコードの色分け（```言語名）。ダークと印刷でも読める組み合わせ */
   --t-kw: #0033b3; --t-str: #067d17; --t-com: #5c6370; --t-num: #9c4a00; --t-fn: #6639ba; --t-bi: #0b6e99; --t-var: #a8350f; --t-del: #b3261e; --t-ins: #1a7f37;
-  --danger: #cf222e; --head: #0550ae; --ed-size: 15px;
+  --danger: #cf222e; --warn: #9a6700; --head: #0550ae; --ed-size: 15px;
   /* 表示フォント（フォントの設定で変わる。--head-font は設定したときだけ入る） */
   --ui-font: "Yu Gothic UI", "Segoe UI", sans-serif;
   --edit-font: Consolas, "BIZ UDGothic", "Yu Gothic UI", monospace;
@@ -28,7 +28,7 @@
     --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --side: #161b22;
     --border: #30363d; --accent: #58a6ff; --sel: #1f3a5f; --code: #1c2128;
     --t-kw: #ff7b72; --t-str: #a5d6ff; --t-com: #8b949e; --t-num: #79c0ff; --t-fn: #d2a8ff; --t-bi: #ffa657; --t-var: #ffb38a; --t-del: #ffa198; --t-ins: #7ee787;
-    --danger: #ff7b72; --head: #79c0ff;
+    --danger: #ff7b72; --warn: #d29922; --head: #79c0ff;
   }
 }
 * { box-sizing: border-box; }
@@ -219,6 +219,35 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 /* 印刷・PDF: 画面の部品を隠し、プレビューの本文だけを紙に流す */
 
 /* フォントの設定ダイアログ */
+/* 検査（lint）: 状態表示欄のボタン、編集欄の下の一覧、行番号の横の印、ルールのダイアログ */
+#lintBtn { font-size: 12px; padding: 0 8px; border: 1px solid transparent; background: none; color: var(--fg); cursor: pointer; border-radius: 4px; }
+#lintBtn:hover { border-color: var(--accent); }
+#lintBtn .w { color: var(--warn); font-weight: 600; } #lintBtn .i { color: var(--accent); } #lintBtn .ok { color: var(--muted); }
+#lintPanel { flex: 0 0 auto; display: flex; flex-direction: column; max-height: 30%; min-height: 90px; border-top: 1px solid var(--border); background: var(--bg); font-size: 13px; }
+#lintPanel[hidden] { display: none; }
+#lintHead { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: var(--side); border-bottom: 1px solid var(--border); }
+#lintHead b { font-weight: 600; } #lintCount { color: var(--muted); font-size: 12px; flex: 1; }
+#lintHead button { font-size: 12px; padding: 1px 8px; }
+#lintList { overflow: auto; flex: 1; }
+#lintList .lrow { display: grid; grid-template-columns: 1.6em 5.2em 1fr auto; gap: 0 6px; align-items: baseline; padding: 2px 8px; cursor: pointer; border-left: 3px solid transparent; }
+#lintList .lrow:hover { background: var(--side); } #lintList .lrow.sel { background: var(--sel); border-left-color: var(--accent); }
+#lintList .lrow .ic.warning { color: var(--warn); } #lintList .lrow .ic.info { color: var(--accent); }
+#lintList .lrow .ln { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+#lintList .lrow .rid { color: var(--muted); font-size: 11px; }
+#lintList .lempty { padding: 10px 12px; color: var(--muted); }
+.lint-gutter { width: 14px; }
+.lint-mark { display: block; width: 9px; height: 9px; margin: 6px 0 0 3px; border-radius: 50%; cursor: pointer; }
+.lint-mark.warning { background: var(--warn); } .lint-mark.info { background: var(--accent); opacity: .75; }
+#lveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+#lveil[hidden] { display: none; }
+#ldlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; width: min(640px, 94vw); max-height: 92vh; display: flex; flex-direction: column; font: 14px/1.5 "Yu Gothic UI", "Segoe UI", sans-serif; }
+#ldlg h3 { margin: 0 0 6px; } #ldlg .hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+#lRules { overflow: auto; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; flex: 1; min-height: 120px; }
+#lRules .lr { padding: 3px 0; border-bottom: 1px solid var(--border); } #lRules .lr:last-child { border-bottom: 0; }
+#lRules .lr label { display: block; } #lRules .lr .hp { margin-left: 1.7em; color: var(--muted); font-size: 12px; }
+#lRules .lr .id { color: var(--muted); font-size: 11px; margin: 0 4px; }
+#ldlg .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
 #tveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
 #tdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
   padding: 14px 16px; width: min(780px, 94vw); max-height: 92vh; overflow: auto; font: 14px/1.5 "Yu Gothic UI", "Segoe UI", sans-serif; }
@@ -446,6 +475,15 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
           </div>
         </div>
         <textarea id="ed"></textarea>
+        <div id="lintPanel" hidden>
+          <div id="lintHead">
+            <b>問題</b><span id="lintCount"></span>
+            <button id="lintRules" title="検査する規則を選びます">ルール…</button>
+            <button id="lintNow" title="いまの内容を検査します">いま検査する</button>
+            <button id="lintClose" title="一覧を閉じます">✕</button>
+          </div>
+          <div id="lintList" role="list"></div>
+        </div>
       </div>
       <div id="split" title="ドラッグで幅を変える"></div>
       <div id="previewPane">
@@ -458,6 +496,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
       <span id="chars">0文字</span>
       <span>改行 <select id="selNl"></select></span>
       <span>文字コード <select id="selEnc"></select></span>
+      <button id="lintBtn" title="Markdown の問題を検査します（一覧を開く・閉じる）">問題 …</button>
       <span id="smsg"></span>
     </div>
   </div>
@@ -478,6 +517,15 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
       </div>
     </div>
     <div class="btns"><span id="mInfo"></span><button id="mCreate" class="primary" disabled>この内容で新規作成</button><button id="mClose">閉じる</button></div>
+  </div>
+</div>
+<div id="lveil" hidden>
+  <div id="ldlg" role="dialog" aria-label="検査のルール">
+    <h3>検査のルール</h3>
+    <p class="hint">チェックを入れた規則で検査します。直すかどうかは、書いた人が決めます（自動では直しません）。文書の中に <code>&lt;!-- lint-disable MD009 --&gt;</code> と書くと、その行から止められます。</p>
+    <label><input id="lAuto" type="checkbox"> 文書を編集したら、自動で検査する</label>
+    <div id="lRules"></div>
+    <div class="btns"><button id="lDefault">既定に戻す</button><button id="lClose" class="primary">閉じる</button></div>
   </div>
 </div>
 <div id="tveil" hidden>
@@ -1078,6 +1126,7 @@ function loadIntoEditor(text) {
   cm.setCursor({ line: 0, ch: 0 }); cm.scrollTo(0, 0);
   applyDocMeta(); updateDirty(); updateCounters(); updatePreview(true); renderList();
   $('pscroll').scrollLeft = 0;
+  scheduleLint(80);
 }
 
 async function openPath(path) {
@@ -1266,7 +1315,7 @@ document.addEventListener('dragover', e => e.preventDefault());
 
 // ウィンドウへのドロップ。Python（filedrop.py）が、開くと決まった対象（Markdown ファイル1つ／フォルダー1つ）だけを渡してくる
 async function handleDrop(kind, path) {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen()) return;
   if (kind === 'folder') await switchFolder(path); else await openPath(path);
 }
 
@@ -1551,7 +1600,158 @@ async function tableSaveJson() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && tableDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTableDlg(); }
   if (e.key === 'Escape' && tmplDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTemplateDlg(); }
+  if (e.key === 'Escape' && lintDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeLintDlg(); }
 }, true);
+
+// ============================================================ 検査（lint）
+// 文書の検査は Python（lint.py）。数式と図の誤りは、描いた結果（プレビューの中の印）から集める。
+const lint = { rules: [], issues: [], dom: [], seq: 0, timer: null, domTimer: null, stale: false, skipped: false, error: '' };
+const lintPref = () => {
+  const p = prefs.lint || {};
+  const off = Array.isArray(p.disabled) ? p.disabled : lint.rules.filter(r => !r.default).map(r => r.id);
+  return { auto: p.auto !== false, open: !!p.open, disabled: off };
+};
+function lintSave(patch) {
+  const cur = lintPref();
+  prefs.lint = { auto: cur.auto, open: cur.open, disabled: cur.disabled, ...patch };
+  api.set_prefs({ lint: prefs.lint });
+}
+const lintAll = () => [...lint.issues, ...lint.dom.filter(d => !lintPref().disabled.includes(d.rule))]
+  .sort((a, b) => a.line - b.line || a.rule.localeCompare(b.rule));
+
+async function initLint() {
+  try { lint.rules = await api.lint_rules(); } catch (e) { lint.rules = []; }
+  $('lintPanel').hidden = !lintPref().open;
+  $('lintBtn').onclick = () => lintToggle();
+  $('lintClose').onclick = () => lintToggle(false);
+  $('lintNow').onclick = () => runLint();
+  $('lintRules').onclick = () => openLintDlg();
+  $('lClose').onclick = closeLintDlg;
+  $('lDefault').onclick = () => { lintSave({ disabled: lint.rules.filter(r => !r.default).map(r => r.id) }); fillLintDlg(); runLint(); };
+  $('lAuto').onchange = () => { lintSave({ auto: $('lAuto').checked }); if ($('lAuto').checked) runLint(); else { clearTimeout(lint.timer); renderLint(); } };   // 切ったら、予約済みの検査も取り消す
+  $('lveil').addEventListener('mousedown', e => { if (e.target === $('lveil')) closeLintDlg(); });
+  // 数式・図の誤りは、描き終えたあとにプレビューへ現れる。変化を見て集め直す
+  new MutationObserver(() => { clearTimeout(lint.domTimer); lint.domTimer = setTimeout(collectDomIssues, 300); })
+    .observe($('preview'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  runLint();
+}
+
+function lintToggle(open) {
+  const want = open === undefined ? $('lintPanel').hidden : open;
+  $('lintPanel').hidden = !want;
+  lintSave({ open: want });
+  if (want) renderLint();
+  cm.refresh();
+}
+
+function lintEdited() {
+  if (!lint.rules.length) return;
+  if (lintPref().auto) scheduleLint(600);
+  else if (!lint.stale) { lint.stale = true; renderLint(); }
+}
+function scheduleLint(delay) { clearTimeout(lint.timer); lint.timer = setTimeout(runLint, delay); }
+
+async function runLint() {
+  if (!api || !lint.rules.length) return;
+  const seq = ++lint.seq;
+  const r = await api.lint(cm.getValue(), doc.path, lintPref().disabled);
+  if (seq !== lint.seq) return;                     // もっと新しい検査がある
+  lint.issues = r.issues || []; lint.skipped = !!r.skipped; lint.error = r.error || ''; lint.stale = false;
+  collectDomIssues(true);
+  renderLint();
+}
+
+function collectDomIssues(quiet) {
+  const found = [];
+  const lineOf = el => { const b = el.closest('[data-line]'); return b ? parseInt(b.dataset.line, 10) || 0 : 0; };
+  document.querySelectorAll('#preview .math-error').forEach(el => {
+    const msg = el.querySelector('.math-error-msg');
+    const why = (msg ? msg.textContent : el.title) || '数式を組めませんでした';
+    found.push({ line: lineOf(el), rule: 'X009', severity: 'warning', message: why });
+  });
+  document.querySelectorAll('#preview .diagram-error').forEach(el => {
+    const p = el.querySelector('p');
+    found.push({ line: parseInt(el.dataset.line, 10) || 0, rule: 'X010', severity: 'warning', message: p ? p.textContent : '図を描けません' });
+  });
+  const key = a => a.map(x => x.line + x.rule + x.message).join('\n');
+  if (key(found) === key(lint.dom)) return;
+  lint.dom = found;
+  if (!quiet) renderLint();
+}
+
+function renderLint() {
+  const all = lintAll();
+  const w = all.filter(i => i.severity === 'warning').length, n = all.length - w;
+  const btn = $('lintBtn');
+  if (lint.skipped) btn.innerHTML = '<span class="ok">検査: 大きいため省略</span>';
+  else if (lint.error) btn.innerHTML = '<span class="w">検査できません</span>';
+  else if (!all.length) btn.innerHTML = '<span class="ok">✓ 問題なし</span>';
+  else btn.innerHTML = '<span class="w">⚠ ' + w + '</span> <span class="i">ℹ ' + n + '</span>';
+  const note = lint.stale ? '　（編集しました。「いま検査する」で更新）' : '';
+  $('lintCount').textContent = (lint.skipped ? '文書が大きすぎるため、検査を省きました（200 万文字まで）'
+    : lint.error ? '検査できませんでした: ' + lint.error
+    : all.length ? `警告 ${w} 件 / 情報 ${n} 件` : '問題は見つかりませんでした') + note;
+  // 行番号の横の印（編集で行がずれても、印は行についていく）
+  cm.operation(() => {
+    cm.clearGutter('lint-gutter');
+    const byLine = new Map();
+    for (const i of all) { const a = byLine.get(i.line) || []; a.push(i); byLine.set(i.line, a); }
+    for (const [line, list] of byLine) {
+      if (line >= cm.lineCount()) continue;
+      const m = document.createElement('span');
+      m.className = 'lint-mark ' + (list.some(x => x.severity === 'warning') ? 'warning' : 'info');
+      m.title = list.map(x => x.rule + ' ' + x.message).join('\n');
+      cm.setGutterMarker(line, 'lint-gutter', m);
+    }
+  });
+  if ($('lintPanel').hidden) return;
+  const box = $('lintList'); box.textContent = '';
+  if (!all.length) { const d = document.createElement('div'); d.className = 'lempty'; d.textContent = lint.skipped ? '' : '✓ 問題は見つかりませんでした。'; box.appendChild(d); return; }
+  for (const i of all) {
+    const r = document.createElement('div'); r.className = 'lrow'; r.dataset.line = i.line; r.setAttribute('role', 'listitem');
+    const ic = document.createElement('span'); ic.className = 'ic ' + i.severity; ic.textContent = i.severity === 'warning' ? '⚠' : 'ℹ';
+    const ln = document.createElement('span'); ln.className = 'ln'; ln.textContent = (i.line + 1) + '行';
+    const msg = document.createElement('span'); msg.textContent = i.message;
+    const rid = document.createElement('span'); rid.className = 'rid'; rid.textContent = i.rule;
+    const rule = lint.rules.find(x => x.id === i.rule); if (rule) rid.title = rule.name + '：' + rule.help;
+    r.append(ic, ln, msg, rid);
+    r.onclick = () => { box.querySelectorAll('.sel').forEach(x => x.classList.remove('sel')); r.classList.add('sel'); lintJump(i.line); };
+    box.appendChild(r);
+  }
+}
+
+function lintJump(line) {
+  line = Math.min(line, cm.lineCount() - 1);
+  cm.focus(); cm.setCursor({ line, ch: 0 }); cm.scrollIntoView({ line, ch: 0 }, 120);
+}
+function lintFromGutter(line) {
+  if ($('lintPanel').hidden) lintToggle(true);
+  const row = [...$('lintList').querySelectorAll('.lrow')].find(r => parseInt(r.dataset.line, 10) === line);
+  $('lintList').querySelectorAll('.sel').forEach(x => x.classList.remove('sel'));
+  if (row) { row.classList.add('sel'); row.scrollIntoView({ block: 'nearest' }); }
+}
+
+// ---- ルールのダイアログ
+const lintDlgOpen = () => !$('lveil').hidden;
+function closeLintDlg() { $('lveil').hidden = true; cm.focus(); }
+function openLintDlg() { fillLintDlg(); $('lveil').hidden = false; $('lClose').focus(); }
+function fillLintDlg() {
+  const p = lintPref(), box = $('lRules'); box.textContent = '';
+  $('lAuto').checked = p.auto;
+  for (const r of lint.rules) {
+    const d = document.createElement('div'); d.className = 'lr';
+    const l = document.createElement('label'); const c = document.createElement('input');
+    c.type = 'checkbox'; c.checked = !p.disabled.includes(r.id);
+    c.onchange = () => {
+      const off = new Set(lintPref().disabled); if (c.checked) off.delete(r.id); else off.add(r.id);
+      lintSave({ disabled: [...off] }); runLint();
+    };
+    const id = document.createElement('span'); id.className = 'id'; id.textContent = r.id;
+    l.append(c, id, document.createTextNode(r.name));
+    const h = document.createElement('div'); h.className = 'hp'; h.textContent = r.help;
+    d.append(l, h); box.appendChild(d);
+  }
+}
 
 // ============================================================ 表示の切り替え・幅
 // 一覧・編集・プレビューのどれを出すかは、この4つのモードを1か所で切り替える。一覧が出るのは3画面のときだけ
@@ -1745,6 +1945,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFormatBar();
   cm = CodeMirror.fromTextArea($('ed'), {
     mode: 'markdown', lineNumbers: true, lineWrapping: true, styleActiveLine: true,
+    gutters: ['CodeMirror-linenumbers', 'lint-gutter'],
     phrases: { 'Jump to line:': '移動する行番号:', '(Use line:column or scroll% syntax)': '（行番号、または 行:列）' },
     indentUnit: 2, tabSize: 4, indentWithTabs: false, placeholder: 'ここに Markdown を書きます',
     extraKeys: {
@@ -1761,7 +1962,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const isFileDrag = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
   cm.on('drop', (c, e) => { if (isFileDrag(e)) e.codemirrorIgnore = true; });
   cm.on('dragover', (c, e) => { if (isFileDrag(e)) e.codemirrorIgnore = true; });
-  cm.on('change', () => { followCursor = true; schedulePreview(); updateDirty(); scheduleCounters(); });
+  cm.on('change', () => { followCursor = true; schedulePreview(); updateDirty(); scheduleCounters(); lintEdited(); });
+  cm.on('gutterClick', (c, line, gutter) => { if (gutter === 'lint-gutter') lintFromGutter(line); });
   cm.on('cursorActivity', scheduleCounters);
   cm.on('scroll', syncFromTop);
   finder = MdFind.create(cm, { bar: $('find'), rrow: $('rrow'), q: $('fq'), r: $('fr'), cs: $('fCase'), re: $('fRegex'), count: $('fCount') });
@@ -1796,6 +1998,7 @@ window.addEventListener('pywebviewready', async () => {
   }
   setView(prefs.view || 'triple');
   applyDocMeta(); updateDirty(); updateCounters(); updatePreview();
+  initLint();
   if (cfg.error) showMsg(cfg.error);
   if (cfg.folder) await loadFolder(cfg.folder);
   if (cfg.file) await openPath(cfg.file);
@@ -1882,7 +2085,7 @@ window.addEventListener('resize', () => { cm && cm.refresh(); if (!fitMode) retu
 window.addEventListener('focus', () => { syncList(); checkExternal(); });
 
 document.addEventListener('keydown', e => {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen()) return;
   const k = e.key.toLowerCase(), c = e.ctrlKey;
   const inEditor = cm && cm.hasFocus();
   if (e.key === 'Escape') hideCtx();

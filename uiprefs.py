@@ -102,6 +102,22 @@ def clean_table(value):
     return out or None
 
 
+def clean_lint(value):
+    """検査（lint）の設定: 自動で検査するか・止めた規則・一覧を開いているか。使える項目だけ返す。"""
+    import lint
+    out = {}
+    if not isinstance(value, dict):
+        return out
+    if isinstance(value.get("auto"), bool):
+        out["auto"] = value["auto"]
+    if isinstance(value.get("open"), bool):
+        out["open"] = value["open"]
+    d = value.get("disabled")
+    if isinstance(d, list):
+        out["disabled"] = sorted({x for x in d if isinstance(x, str) and x in lint.RULE_IDS})
+    return out
+
+
 def clean_prefs(patch):
     """画面から受け取った設定のうち、正しいものだけを返す（書き込んでよい項目に限る）。"""
     out = {}
@@ -123,6 +139,10 @@ def clean_prefs(patch):
         table = clean_table(patch["table"])
         if table:
             out["table"] = table
+    if "lint" in patch:
+        lint_prefs = clean_lint(patch["lint"])
+        if lint_prefs:
+            out["lint"] = lint_prefs
     return out
 
 

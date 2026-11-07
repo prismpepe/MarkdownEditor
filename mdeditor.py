@@ -28,6 +28,7 @@ import dialogs
 import filedrop
 import highlight
 import imgembed
+import lint
 import mathtex
 import tabular
 import templating
@@ -39,7 +40,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Markdown エディタ"
-APP_VERSION = "1.15.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.16.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -233,6 +234,8 @@ class Api:
     def __init__(self, start_path):
         self._window = None
         self._md = make_renderer()
+        self._lint_md = make_renderer()          # 検査用（描画と同じ変換器を、別のスレッドで共有しない）
+        self._lint_lock = threading.Lock()
         self._mermaid = None
         self._vendor = {}
         self._picked_templates = set()      # 利用者が「ファイルを選ぶ」で選んだテンプレート（正規化したパス）
@@ -549,6 +552,24 @@ class Api:
         self._doc_dir = base or None
         html = self._md.render(text, {"base": base})
         return sanitize(html, lambda src: inline_image(src, base))
+
+    def lint_rules(self):
+        """検査の規則の一覧（番号・名前・既定で検査するか・説明）。"""
+        return [{"id": r[0], "name": r[1], "default": r[2], "help": r[3]} for r in lint.RULES]
+
+    def lint(self, text, path=None, disabled=None):
+        """文書の問題の一覧。変換器は描画用と別に持つ（呼び出しごとに別のスレッドで動くため）。"""
+        if not isinstance(text, str):
+            return {"issues": [], "skipped": False}
+        if len(text) > lint.MAX_CHARS:
+            return {"issues": [], "skipped": True}
+        off = [d for d in (disabled or []) if isinstance(d, str)]
+        try:
+            with self._lint_lock:
+                issues = lint.lint(text, self._lint_md, path if isinstance(path, str) and path else None, off)
+        except Exception as e:                      # 検査の失敗で編集を止めない
+            return {"issues": [], "skipped": False, "error": str(e)}
+        return {"issues": issues, "skipped": False}
 
     def resolve_link(self, current, href):
         """文書内の相対リンクを開く先に解決する。Markdown 以外は開かない。"""
